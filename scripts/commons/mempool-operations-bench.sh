@@ -32,11 +32,22 @@ echo "Running mempool operations benchmarks..."
 LOG_FILE="/tmp/commons-mempool.log"
 BENCH_SUCCESS=false
 
-if cargo bench --bench mempool_operations --features production 2>&1 | tee "$LOG_FILE"; then
-    BENCH_SUCCESS=true
-    echo "✅ mempool_operations benchmark completed"
-else
-    echo "❌ mempool_operations benchmark failed - check $LOG_FILE"
+# Try all possible benchmark names
+for bench_name in "mempool_operations" "mempool" "mempool_acceptance"; do
+    echo "Trying benchmark: $bench_name"
+    if cargo bench --bench "$bench_name" --features production 2>&1 | tee "$LOG_FILE"; then
+        BENCH_SUCCESS=true
+        echo "✅ $bench_name benchmark completed"
+        break
+    else
+        echo "⚠️  $bench_name failed, trying next..."
+    fi
+done
+
+if [ "$BENCH_SUCCESS" = "false" ]; then
+    echo "❌ All mempool benchmarks failed - check $LOG_FILE"
+    echo "   Available benchmarks:"
+    cargo bench --list 2>&1 | grep -E "mempool" || echo "   (none found)"
 fi
 
 # Extract from Criterion JSON files (more reliable than parsing stdout)

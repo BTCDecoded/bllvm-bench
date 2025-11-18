@@ -38,18 +38,23 @@ BENCH_START=$(date +%s)
 echo "Running block validation benchmarks with production features..."
 BENCH_SUCCESS=false
 
-if cargo bench --bench block_validation_realistic --features production 2>&1 | tee /tmp/block_validation_bench.log; then
-    BENCH_SUCCESS=true
-    echo "✅ block_validation_realistic benchmark completed"
-else
-    echo "⚠️  block_validation_realistic failed, trying basic benchmark..."
-    if cargo bench --bench block_validation --features production 2>&1 | tee /tmp/block_validation_bench.log; then
+# Try all possible benchmark names
+for bench_name in "block_validation_realistic" "block_validation" "connect_block"; do
+    echo "Trying benchmark: $bench_name"
+    if cargo bench --bench "$bench_name" --features production 2>&1 | tee /tmp/block_validation_bench.log; then
         BENCH_SUCCESS=true
-        echo "✅ block_validation benchmark completed"
+        echo "✅ $bench_name benchmark completed"
+        break
     else
-        echo "❌ All block validation benchmarks failed"
-        echo "   Check /tmp/block_validation_bench.log for errors"
+        echo "⚠️  $bench_name failed, trying next..."
     fi
+done
+
+if [ "$BENCH_SUCCESS" = "false" ]; then
+    echo "❌ All block validation benchmarks failed"
+    echo "   Check /tmp/block_validation_bench.log for errors"
+    echo "   Available benchmarks:"
+    cargo bench --list 2>&1 | grep -E "block|connect" || echo "   (none found)"
 fi
 
 # Verify Criterion output was generated

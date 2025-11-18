@@ -39,11 +39,22 @@ echo ""
 LOG_FILE="/tmp/commons-tx-validation.log"
 BENCH_SUCCESS=false
 
-if cargo bench --bench check_block --features production 2>&1 | tee "$LOG_FILE"; then
-    BENCH_SUCCESS=true
-    echo "✅ check_block benchmark completed"
-else
-    echo "❌ check_block benchmark failed - check $LOG_FILE"
+# Try all possible benchmark names
+for bench_name in "check_block" "transaction_validation" "checkblock"; do
+    echo "Trying benchmark: $bench_name"
+    if cargo bench --bench "$bench_name" --features production 2>&1 | tee "$LOG_FILE"; then
+        BENCH_SUCCESS=true
+        echo "✅ $bench_name benchmark completed"
+        break
+    else
+        echo "⚠️  $bench_name failed, trying next..."
+    fi
+done
+
+if [ "$BENCH_SUCCESS" = "false" ]; then
+    echo "❌ All transaction validation benchmarks failed - check $LOG_FILE"
+    echo "   Available benchmarks:"
+    cargo bench --list 2>&1 | grep -E "check|transaction" || echo "   (none found)"
 fi
 
 CRITERION_DIR="$BENCH_DIR/target/criterion"
