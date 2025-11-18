@@ -49,27 +49,67 @@ CRITERION_DIR="$BENCH_DIR/target/criterion"
 CONNECT_BLOCK_TIME_MS="0"
 CONNECT_BLOCK_MULTI_TX_TIME_MS="0"
 
-# Try to find realistic benchmark first (prefer 1000tx, fallback to 100tx)
-REALISTIC_BENCH=""
-if [ -d "$CRITERION_DIR/connect_block_realistic_1000tx" ] && [ -f "$CRITERION_DIR/connect_block_realistic_1000tx/base/estimates.json" ]; then
-    REALISTIC_BENCH="$CRITERION_DIR/connect_block_realistic_1000tx"
-elif [ -d "$CRITERION_DIR/connect_block_realistic_100tx" ] && [ -f "$CRITERION_DIR/connect_block_realistic_100tx/base/estimates.json" ]; then
-    REALISTIC_BENCH="$CRITERION_DIR/connect_block_realistic_100tx"
-fi
+echo "Searching for Criterion results in: $CRITERION_DIR"
 
-if [ -n "$REALISTIC_BENCH" ]; then
-    TIME_NS=$(jq -r '.mean.point_estimate' "$REALISTIC_BENCH/base/estimates.json" 2>/dev/null || echo "0")
-    if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
-        CONNECT_BLOCK_TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
-        echo "Found realistic benchmark: $CONNECT_BLOCK_TIME_MS ms per block"
+# Try to find any connect_block benchmark (search more broadly)
+ESTIMATES_FILE=""
+
+# Search for estimates.json files related to connect_block
+if [ -d "$CRITERION_DIR" ]; then
+    # Try specific paths first
+    POSSIBLE_PATHS=(
+        "$CRITERION_DIR/connect_block_realistic_1000tx/base/estimates.json"
+        "$CRITERION_DIR/connect_block_realistic_100tx/base/estimates.json"
+        "$CRITERION_DIR/connect_block/base/estimates.json"
+        "$CRITERION_DIR/block_validation_realistic/connect_block/base/estimates.json"
+        "$CRITERION_DIR/block_validation/connect_block/base/estimates.json"
+    )
+    
+    for path in "${POSSIBLE_PATHS[@]}"; do
+        if [ -f "$path" ]; then
+            ESTIMATES_FILE="$path"
+            echo "Found estimates.json at: $path"
+            break
+        fi
+    done
+    
+    # If not found, search more broadly
+    if [ -z "$ESTIMATES_FILE" ]; then
+        ESTIMATES_FILE=$(find "$CRITERION_DIR" -name "estimates.json" -path "*/connect_block*" -path "*/base/*" 2>/dev/null | head -1)
+        if [ -n "$ESTIMATES_FILE" ]; then
+            echo "Found estimates.json by search: $ESTIMATES_FILE"
+        fi
+    fi
+    
+    # Last resort: find any estimates.json with "connect" in path
+    if [ -z "$ESTIMATES_FILE" ]; then
+        ESTIMATES_FILE=$(find "$CRITERION_DIR" -name "estimates.json" -path "*connect*" 2>/dev/null | head -1)
+        if [ -n "$ESTIMATES_FILE" ]; then
+            echo "Found estimates.json (connect-related): $ESTIMATES_FILE"
+        fi
     fi
 fi
 
-# Try basic connect_block benchmark
-if [ "$CONNECT_BLOCK_TIME_MS" = "0" ] && [ -d "$CRITERION_DIR/connect_block" ] && [ -f "$CRITERION_DIR/connect_block/base/estimates.json" ]; then
-    TIME_NS=$(jq -r '.mean.point_estimate' "$CRITERION_DIR/connect_block/base/estimates.json" 2>/dev/null || echo "0")
-    if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
+if [ -n "$ESTIMATES_FILE" ] && [ -f "$ESTIMATES_FILE" ]; then
+    # Try mean first, then median
+    TIME_NS=$(jq -r '.mean.point_estimate // .median.point_estimate // 0' "$ESTIMATES_FILE" 2>/dev/null || echo "0")
+    
+    if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ] && [ "$TIME_NS" != "" ]; then
         CONNECT_BLOCK_TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
+        echo "✅ Extracted timing: ${CONNECT_BLOCK_TIME_MS} ms per block (${TIME_NS} ns)"
+    else
+        echo "⚠️  No valid timing found in estimates.json (value: $TIME_NS)"
+        echo "   File content preview:"
+        jq '.mean // .median' "$ESTIMATES_FILE" 2>/dev/null | head -5 || echo "   Failed to parse JSON"
+    fi
+else
+    echo "⚠️  Criterion estimates.json not found for connect_block"
+    if [ -d "$CRITERION_DIR" ]; then
+        echo "   Available Criterion benchmarks:"
+        find "$CRITERION_DIR" -type d -maxdepth 2 2>/dev/null | head -10 || echo "   (none found)"
+    else
+        echo "   Criterion directory does not exist: $CRITERION_DIR"
+        echo "   Benchmark may have failed to run or output was not generated"
     fi
 fi
 
