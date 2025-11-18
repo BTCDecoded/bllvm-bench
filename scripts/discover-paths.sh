@@ -30,6 +30,17 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# If BLLVM_BENCH_ROOT is already set and valid, use it
+if [ -z "$BLLVM_BENCH_ROOT" ] || [ ! -d "$BLLVM_BENCH_ROOT" ]; then
+    # Try to find bllvm-bench from current directory
+    CURRENT_DIR="$(pwd)"
+    if [ -f "$CURRENT_DIR/Cargo.toml" ] && grep -q "bllvm-bench" "$CURRENT_DIR/Cargo.toml" 2>/dev/null; then
+        BLLVM_BENCH_ROOT="$CURRENT_DIR"
+    elif [ -d "$CURRENT_DIR/scripts" ] && [ -f "$CURRENT_DIR/scripts/discover-paths.sh" ]; then
+        BLLVM_BENCH_ROOT="$CURRENT_DIR"
+    fi
+fi
+
 # Auto-discover Bitcoin Core
 if [ -z "$CORE_PATH" ]; then
     # Common locations to search
@@ -66,7 +77,7 @@ fi
 
 # Auto-discover Bitcoin Commons
 if [ -z "$COMMONS_CONSENSUS_PATH" ] || [ -z "$COMMONS_NODE_PATH" ]; then
-    # Common locations to search
+    # Common locations to search (relative to BLLVM_BENCH_ROOT and absolute)
     SEARCH_PATHS=(
         "$HOME/src/bllvm-consensus"
         "$HOME/src/bitcoin-commons"
@@ -74,6 +85,9 @@ if [ -z "$COMMONS_CONSENSUS_PATH" ] || [ -z "$COMMONS_NODE_PATH" ]; then
         "../../bllvm-consensus"
         "$BLLVM_BENCH_ROOT/../bllvm-consensus"
         "$BLLVM_BENCH_ROOT/../../bllvm-consensus"
+        "$(dirname "$BLLVM_BENCH_ROOT")/bllvm-consensus"
+        "$(dirname "$(dirname "$BLLVM_BENCH_ROOT")")/commons/bllvm-consensus"
+        "$(dirname "$(dirname "$BLLVM_BENCH_ROOT")")/bllvm-consensus"
     )
     
     for path in "${SEARCH_PATHS[@]}"; do

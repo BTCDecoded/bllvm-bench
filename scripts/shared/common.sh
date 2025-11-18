@@ -6,17 +6,40 @@ set -e
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Find bllvm-bench root (could be scripts/../.. or scripts/..)
+if [ -f "$SCRIPT_DIR/../discover-paths.sh" ]; then
+    BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+elif [ -f "$SCRIPT_DIR/../../scripts/discover-paths.sh" ]; then
+    BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+else
+    # Try to find it from current working directory
+    CURRENT_DIR="$(pwd)"
+    if [ -f "$CURRENT_DIR/scripts/discover-paths.sh" ]; then
+        BLLVM_BENCH_ROOT="$CURRENT_DIR"
+    elif [ -f "$CURRENT_DIR/discover-paths.sh" ]; then
+        BLLVM_BENCH_ROOT="$CURRENT_DIR"
+    else
+        BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    fi
+fi
 
 # Discover paths
-if [ -f "$BLLVM_BENCH_ROOT/scripts/discover-paths.sh" ]; then
+DISCOVER_SCRIPT="$BLLVM_BENCH_ROOT/scripts/discover-paths.sh"
+if [ ! -f "$DISCOVER_SCRIPT" ]; then
+    DISCOVER_SCRIPT="$BLLVM_BENCH_ROOT/discover-paths.sh"
+fi
+
+if [ -f "$DISCOVER_SCRIPT" ]; then
     # Source the path discovery - use source instead of eval to avoid quote issues
     # Temporarily disable set -e to allow script to complete even if paths not found
     set +e
-    . "$BLLVM_BENCH_ROOT/scripts/discover-paths.sh"
+    . "$DISCOVER_SCRIPT"
     set -e
 else
-    echo "⚠️  Warning: discover-paths.sh not found, paths may not be set correctly" >&2
+    echo "⚠️  Warning: discover-paths.sh not found at $DISCOVER_SCRIPT" >&2
+    echo "   BLLVM_BENCH_ROOT: $BLLVM_BENCH_ROOT" >&2
+    echo "   SCRIPT_DIR: $SCRIPT_DIR" >&2
 fi
 
 # Validate required paths (allow Commons-only runs)
