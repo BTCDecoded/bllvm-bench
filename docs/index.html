@@ -198,45 +198,50 @@
             const contentEl = document.getElementById('content');
 
             try {
-                // Try local file first (for GitHub Pages)
+                // Priority 1: Try to get from latest release (benchmarks-latest tag)
                 let response;
                 let jsonData;
                 
                 try {
-                    response = await fetch(LOCAL_JSON_URL);
-                    if (response.ok) {
-                        jsonData = await response.json();
-                    } else {
-                        throw new Error('Local file not found');
-                    }
-                } catch (e) {
-                    console.log('Trying latest release...');
-                    // Try to get from latest release
-                    try {
-                        const releaseResponse = await fetch(RELEASE_JSON_URL);
-                        if (releaseResponse.ok) {
-                            const release = await releaseResponse.json();
-                            // Find JSON asset in release
-                            const jsonAsset = release.assets.find(a => a.name.includes('benchmark-results-consolidated') && a.name.endsWith('.json'));
-                            if (jsonAsset) {
-                                response = await fetch(jsonAsset.browser_download_url);
-                                if (response.ok) {
-                                    jsonData = await response.json();
-                                }
+                    console.log('Loading from release...');
+                    const releaseResponse = await fetch(RELEASE_JSON_URL);
+                    if (releaseResponse.ok) {
+                        const release = await releaseResponse.json();
+                        // Find JSON asset in release
+                        const jsonAsset = release.assets.find(a => a.name.includes('benchmark-results-consolidated') && a.name.endsWith('.json'));
+                        if (jsonAsset) {
+                            response = await fetch(jsonAsset.browser_download_url);
+                            if (response.ok) {
+                                jsonData = await response.json();
+                                console.log('✅ Loaded from release');
                             }
                         }
-                    } catch (releaseErr) {
-                        console.log('Release not available, trying main branch...');
                     }
-                    
-                    // Fallback to main branch
-                    if (!jsonData) {
-                        response = await fetch(MAIN_JSON_URL);
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                } catch (releaseErr) {
+                    console.log('Release not available, trying local file...');
+                }
+                
+                // Priority 2: Fallback to local file (for GitHub Pages)
+                if (!jsonData) {
+                    try {
+                        response = await fetch(LOCAL_JSON_URL);
+                        if (response.ok) {
+                            jsonData = await response.json();
+                            console.log('✅ Loaded from local file');
                         }
-                        jsonData = await response.json();
+                    } catch (e) {
+                        console.log('Local file not found, trying main branch...');
                     }
+                }
+                
+                // Priority 3: Fallback to main branch
+                if (!jsonData) {
+                    response = await fetch(MAIN_JSON_URL);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    jsonData = await response.json();
+                    console.log('✅ Loaded from main branch');
                 }
 
                 const data = jsonData;
