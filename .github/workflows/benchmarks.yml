@@ -394,31 +394,31 @@ jobs:
       - name: Archive old releases (if any)
         run: |
           # Archive releases older than 1 week (skip if no releases exist)
-              ONE_WEEK_AGO=$(date -u -d '1 week ago' +%Y-%m-%dT%H:%M:%SZ)
-              
-              # Get all releases with "benchmarks-" prefix (excluding "benchmarks-latest")
-              RELEASES=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName,createdAt,id 2>/dev/null | jq -r '.[] | select(.tagName | startswith("benchmarks-")) | select(.tagName != "benchmarks-latest") | "\(.tagName)|\(.createdAt)|\(.id)"' || echo "")
-              
-              if [ -z "$RELEASES" ]; then
-                echo "No old releases to archive"
-                exit 0
-              fi
-              
-              for release_info in $RELEASES; do
-                TAG=$(echo "$release_info" | cut -d'|' -f1)
-                CREATED=$(echo "$release_info" | cut -d'|' -f2)
-                RELEASE_ID=$(echo "$release_info" | cut -d'|' -f3)
-                
-                # Compare dates (CREATED is ISO 8601 format)
-                CREATED_EPOCH=$(date -u -d "$CREATED" +%s 2>/dev/null || echo "0")
-                ONE_WEEK_AGO_EPOCH=$(date -u -d "$ONE_WEEK_AGO" +%s 2>/dev/null || echo "0")
-                
-                if [ "$CREATED_EPOCH" -lt "$ONE_WEEK_AGO_EPOCH" ] && [ "$CREATED_EPOCH" -gt 0 ]; then
-                  echo "Archiving old release: $TAG (created: $CREATED)"
-                  # Update release title to mark as archived
-                  gh release edit "$TAG" --title "Archived: $TAG" --repo ${{ github.repository }} || echo "⚠️  Failed to archive $TAG"
-                fi
-              done
+          ONE_WEEK_AGO=$(date -u -d '1 week ago' +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Get all releases with "benchmarks-" prefix (excluding "benchmarks-latest")
+          RELEASES=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName,createdAt,id 2>/dev/null | jq -r '.[] | select(.tagName | startswith("benchmarks-")) | select(.tagName != "benchmarks-latest") | "\(.tagName)|\(.createdAt)|\(.id)"' || echo "")
+          
+          if [ -z "$RELEASES" ]; then
+            echo "No old releases to archive"
+            exit 0
+          fi
+          
+          for release_info in $RELEASES; do
+            TAG=$(echo "$release_info" | cut -d'|' -f1)
+            CREATED=$(echo "$release_info" | cut -d'|' -f2)
+            RELEASE_ID=$(echo "$release_info" | cut -d'|' -f3)
+            
+            # Compare dates (CREATED is ISO 8601 format)
+            CREATED_EPOCH=$(date -u -d "$CREATED" +%s 2>/dev/null || echo "0")
+            ONE_WEEK_AGO_EPOCH=$(date -u -d "$ONE_WEEK_AGO" +%s 2>/dev/null || echo "0")
+            
+            if [ "$CREATED_EPOCH" -lt "$ONE_WEEK_AGO_EPOCH" ] && [ "$CREATED_EPOCH" -gt 0 ]; then
+              echo "Archiving old release: $TAG (created: $CREATED)"
+              # Update release title to mark as archived
+              gh release edit "$TAG" --title "Archived: $TAG" --repo ${{ github.repository }} || echo "⚠️  Failed to archive $TAG"
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
         continue-on-error: true
@@ -447,9 +447,9 @@ jobs:
       - name: Create or Update Release (benchmarks-latest)
         uses: softprops/action-gh-release@v1
         with:
-              tag_name: benchmarks-latest
-              name: Latest Benchmark Results
-              body: |
+          tag_name: benchmarks-latest
+          name: Latest Benchmark Results
+          body: |
                 Latest benchmark results from self-hosted runner.
                 
                 **Run Number:** ${{ github.run_number }}
