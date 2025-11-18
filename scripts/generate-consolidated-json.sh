@@ -17,21 +17,29 @@ echo "║  Generating Consolidated JSON Report                          ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Find latest suite directory
-LATEST_SUITE=$(find "$OUTPUT_DIR" -type d -name "suite-*" 2>/dev/null | sort | tail -1)
+# Find ALL suite directories (not just latest - we want full coverage)
+ALL_SUITES=$(find "$OUTPUT_DIR" -type d -name "suite-*" 2>/dev/null | sort)
+LATEST_SUITE=$(echo "$ALL_SUITES" | tail -1)
 
 if [ -z "$LATEST_SUITE" ]; then
     echo "⚠️  No benchmark suite found, searching all result directories..."
-    # Try to find JSON files in results directory directly
     LATEST_SUITE="$OUTPUT_DIR"
 fi
 
 echo "Using suite: $LATEST_SUITE"
+if [ -n "$ALL_SUITES" ] && [ $(echo "$ALL_SUITES" | wc -l) -gt 1 ]; then
+    echo "Found $(echo "$ALL_SUITES" | wc -l) suite directories - will search all for maximum coverage"
+fi
 echo ""
 
-# Collect all JSON files (search both suite directory and results root)
+# Collect ALL JSON files from ALL suites and results root for maximum coverage
 # Exclude history files, trends, and other non-benchmark files
-JSON_FILES=$(find "$OUTPUT_DIR" "$LATEST_SUITE" -name "*.json" -type f \
+SEARCH_DIRS="$OUTPUT_DIR"
+if [ -n "$ALL_SUITES" ]; then
+    SEARCH_DIRS="$SEARCH_DIRS $ALL_SUITES"
+fi
+
+JSON_FILES=$(find $SEARCH_DIRS -name "*.json" -type f \
     ! -name "summary.json" \
     ! -name "*consolidated*" \
     ! -name "history-*.json" \
