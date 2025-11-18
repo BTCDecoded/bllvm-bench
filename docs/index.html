@@ -184,13 +184,18 @@
         <div id="content" style="display: none;"></div>
     </div>
 
-    <script>
+        <script>
             // Configuration
             // Priority: 1. Latest release (benchmarks-latest tag), 2. Local file (fallback), 3. Main branch
             const RELEASE_TAG = 'benchmarks-latest';
             const RELEASE_JSON_URL = `https://api.github.com/repos/BTCDecoded/bllvm-bench/releases/tags/${RELEASE_TAG}`;
             const LOCAL_JSON_URL = './data/benchmark-results-consolidated-latest.json';
             const MAIN_JSON_URL = 'https://raw.githubusercontent.com/BTCDecoded/bllvm-bench/main/docs/data/benchmark-results-consolidated-latest.json';
+            
+            // Load data on page load
+            document.addEventListener('DOMContentLoaded', () => {
+                loadBenchmarkData();
+            });
 
         async function loadBenchmarkData() {
             const loadingEl = document.getElementById('loading');
@@ -426,8 +431,13 @@
         }
 
         // Load data on page load
-        loadBenchmarkData();
-    </script>
-</body>
+            // Auto-load on page load
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadBenchmarkData);
+            } else {
+                loadBenchmarkData();
+            }
+        </script>
+    </body>
 </html>
 
