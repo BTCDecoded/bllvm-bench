@@ -8,19 +8,22 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Find bllvm-bench root (could be scripts/../.. or scripts/..)
-if [ -f "$SCRIPT_DIR/../discover-paths.sh" ]; then
-    BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-elif [ -f "$SCRIPT_DIR/../../scripts/discover-paths.sh" ]; then
-    BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-else
-    # Try to find it from current working directory
-    CURRENT_DIR="$(pwd)"
-    if [ -f "$CURRENT_DIR/scripts/discover-paths.sh" ]; then
-        BLLVM_BENCH_ROOT="$CURRENT_DIR"
-    elif [ -f "$CURRENT_DIR/discover-paths.sh" ]; then
-        BLLVM_BENCH_ROOT="$CURRENT_DIR"
-    else
+# Don't override if already set (e.g., by run-benchmarks.sh)
+if [ -z "$BLLVM_BENCH_ROOT" ]; then
+    if [ -f "$SCRIPT_DIR/../discover-paths.sh" ]; then
         BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    elif [ -f "$SCRIPT_DIR/../../scripts/discover-paths.sh" ]; then
+        BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    else
+        # Try to find it from current working directory
+        CURRENT_DIR="$(pwd)"
+        if [ -f "$CURRENT_DIR/scripts/discover-paths.sh" ]; then
+            BLLVM_BENCH_ROOT="$CURRENT_DIR"
+        elif [ -f "$CURRENT_DIR/discover-paths.sh" ]; then
+            BLLVM_BENCH_ROOT="$CURRENT_DIR"
+        else
+            BLLVM_BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+        fi
     fi
 fi
 
