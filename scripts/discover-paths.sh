@@ -13,6 +13,17 @@ if [ -f "$CONFIG_FILE" ]; then
     CORE_PATH=$(grep -E "^core_path\s*=" "$CONFIG_FILE" 2>/dev/null | sed 's/.*=\s*"\([^"]*\)".*/\1/' | sed 's/.*=\s*\([^#]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
     COMMONS_CONSENSUS_PATH=$(grep -E "^commons_consensus_path\s*=" "$CONFIG_FILE" 2>/dev/null | sed 's/.*=\s*"\([^"]*\)".*/\1/' | sed 's/.*=\s*\([^#]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
     COMMONS_NODE_PATH=$(grep -E "^commons_node_path\s*=" "$CONFIG_FILE" 2>/dev/null | sed 's/.*=\s*"\([^"]*\)".*/\1/' | sed 's/.*=\s*\([^#]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
+    
+    # Resolve config paths to absolute paths
+    if [ -n "$CORE_PATH" ] && [ -d "$CORE_PATH" ]; then
+        CORE_PATH=$(cd "$CORE_PATH" 2>/dev/null && pwd || echo "$CORE_PATH")
+    fi
+    if [ -n "$COMMONS_CONSENSUS_PATH" ] && [ -d "$COMMONS_CONSENSUS_PATH" ]; then
+        COMMONS_CONSENSUS_PATH=$(cd "$COMMONS_CONSENSUS_PATH" 2>/dev/null && pwd || echo "$COMMONS_CONSENSUS_PATH")
+    fi
+    if [ -n "$COMMONS_NODE_PATH" ] && [ -d "$COMMONS_NODE_PATH" ]; then
+        COMMONS_NODE_PATH=$(cd "$COMMONS_NODE_PATH" 2>/dev/null && pwd || echo "$COMMONS_NODE_PATH")
+    fi
 fi
 
 # Get script directory (bllvm-bench root)
@@ -33,16 +44,23 @@ if [ -z "$CORE_PATH" ]; then
     )
     
     for path in "${SEARCH_PATHS[@]}"; do
-        if [ -d "$path" ] && [ -f "$path/src/CMakeLists.txt" ] && [ -f "$path/src/bitcoin.cpp" ]; then
-            CORE_PATH="$path"
-            break
+        # Resolve to absolute path
+        if [ -d "$path" ]; then
+            abs_path=$(cd "$path" 2>/dev/null && pwd || echo "")
+            if [ -n "$abs_path" ] && [ -f "$abs_path/src/CMakeLists.txt" ] && [ -f "$abs_path/src/bitcoin.cpp" ]; then
+                CORE_PATH="$abs_path"
+                break
+            fi
         fi
     done
     
     # Also check if bench_bitcoin is in PATH
     if [ -z "$CORE_PATH" ] && command -v bench_bitcoin >/dev/null 2>&1; then
         BENCH_BITCOIN_PATH=$(command -v bench_bitcoin)
-        CORE_PATH=$(dirname "$(dirname "$(dirname "$BENCH_BITCOIN_PATH")")")
+        potential_path=$(dirname "$(dirname "$(dirname "$BENCH_BITCOIN_PATH")")")
+        if [ -d "$potential_path" ]; then
+            CORE_PATH=$(cd "$potential_path" 2>/dev/null && pwd || echo "$potential_path")
+        fi
     fi
 fi
 
@@ -59,21 +77,28 @@ if [ -z "$COMMONS_CONSENSUS_PATH" ] || [ -z "$COMMONS_NODE_PATH" ]; then
     )
     
     for path in "${SEARCH_PATHS[@]}"; do
-        if [ -d "$path" ] && [ -f "$path/Cargo.toml" ] && grep -q "bllvm-consensus" "$path/Cargo.toml" 2>/dev/null; then
-            COMMONS_CONSENSUS_PATH="$path"
-            # Try to find bllvm-node nearby
-            NODE_CANDIDATES=(
-                "$(dirname "$path")/bllvm-node"
-                "$(dirname "$(dirname "$path")")/bllvm-node"
-                "$path/../bllvm-node"
-            )
-            for node_path in "${NODE_CANDIDATES[@]}"; do
-                if [ -d "$node_path" ] && [ -f "$node_path/Cargo.toml" ] && grep -q "bllvm-node" "$node_path/Cargo.toml" 2>/dev/null; then
-                    COMMONS_NODE_PATH="$node_path"
-                    break
-                fi
-            done
-            break
+        # Resolve to absolute path
+        if [ -d "$path" ]; then
+            abs_path=$(cd "$path" 2>/dev/null && pwd || echo "")
+            if [ -n "$abs_path" ] && [ -f "$abs_path/Cargo.toml" ] && grep -q "bllvm-consensus" "$abs_path/Cargo.toml" 2>/dev/null; then
+                COMMONS_CONSENSUS_PATH="$abs_path"
+                # Try to find bllvm-node nearby
+                NODE_CANDIDATES=(
+                    "$(dirname "$abs_path")/bllvm-node"
+                    "$(dirname "$(dirname "$abs_path")")/bllvm-node"
+                    "$abs_path/../bllvm-node"
+                )
+                for node_path in "${NODE_CANDIDATES[@]}"; do
+                    if [ -d "$node_path" ]; then
+                        abs_node_path=$(cd "$node_path" 2>/dev/null && pwd || echo "")
+                        if [ -n "$abs_node_path" ] && [ -f "$abs_node_path/Cargo.toml" ] && grep -q "bllvm-node" "$abs_node_path/Cargo.toml" 2>/dev/null; then
+                            COMMONS_NODE_PATH="$abs_node_path"
+                            break
+                        fi
+                    fi
+                done
+                break
+            fi
         fi
     done
 fi
