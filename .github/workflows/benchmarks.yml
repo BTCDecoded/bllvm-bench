@@ -253,31 +253,44 @@ jobs:
 
       - name: Commit benchmark data
         env:
-          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          PAT_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
         run: |
           # Verify token is set
-          if [ -z "$GITHUB_TOKEN" ]; then
-            echo "❌ GITHUB_TOKEN (REPO_ACCESS_TOKEN) is not set!"
+          if [ -z "$PAT_TOKEN" ]; then
+            echo "❌ PAT_TOKEN (REPO_ACCESS_TOKEN) is not set!"
             echo "   Please add REPO_ACCESS_TOKEN secret in repository settings"
             exit 1
+          fi
+          
+          # Verify token format (should start with ghp_ for classic PATs)
+          if [[ ! "$PAT_TOKEN" =~ ^ghp_ ]] && [[ ! "$PAT_TOKEN" =~ ^gho_ ]] && [[ ! "$PAT_TOKEN" =~ ^github_pat_ ]]; then
+            echo "⚠️  Warning: Token format doesn't look like a PAT (should start with ghp_, gho_, or github_pat_)"
           fi
           
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Use HTTPS with token for authentication (runner only has API access, not SSH)
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          # Use HTTPS with PAT token for authentication (runner only has API access, not SSH)
+          # Use the PAT directly in the URL (not x-access-token prefix)
+          git remote set-url origin https://${PAT_TOKEN}@github.com/${{ github.repository }}.git
           
-          # Verify remote is set correctly
-          echo "Remote URL configured (token hidden for security)"
+          # Verify remote is set correctly (hide token in output)
+          echo "Remote URL configured (using PAT token)"
+          git remote -v | sed "s/${PAT_TOKEN}/***HIDDEN***/g" || true
           
           git add docs/data/
           if ! git diff --staged --quiet; then
             git commit -m "🤖 Update benchmark data [skip ci]"
             echo "Pushing to origin/main..."
-            git push origin main || {
-              echo "⚠️  Push failed. Checking error..."
-              echo "   Make sure REPO_ACCESS_TOKEN has 'repo' scope and write permissions"
+            
+            # Try push with verbose output (but hide token)
+            GIT_CURL_VERBOSE=1 GIT_TRACE=1 git push origin main 2>&1 | sed "s/${PAT_TOKEN}/***HIDDEN***/g" || {
+              echo ""
+              echo "⚠️  Push failed. Troubleshooting:"
+              echo "   1. Verify REPO_ACCESS_TOKEN has 'repo' scope"
+              echo "   2. Check if token has expired"
+              echo "   3. Verify repository permissions for the token"
+              echo "   4. Check if branch protection rules are blocking the push"
               exit 1
             }
           else
