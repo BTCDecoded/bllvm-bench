@@ -247,17 +247,6 @@ jobs:
           echo "json_file=$LATEST_JSON" >> $GITHUB_OUTPUT
           echo "Found: $LATEST_JSON"
 
-      - name: Find latest consolidated JSON
-        id: find_json
-        run: |
-          LATEST_JSON=$(find results -name "benchmark-results-consolidated-*.json" -type f | sort | tail -1)
-          if [ -z "$LATEST_JSON" ]; then
-            echo "❌ No consolidated JSON found"
-            exit 1
-          fi
-          echo "json_file=$LATEST_JSON" >> $GITHUB_OUTPUT
-          echo "Found: $LATEST_JSON"
-
       - name: Create or Update Release
         uses: softprops/action-gh-release@v1
         with:
