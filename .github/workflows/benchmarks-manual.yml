@@ -44,9 +44,12 @@ jobs:
           make update-gh-pages
 
       - name: Commit benchmark data
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git add docs/data/
           git diff --staged --quiet || git commit -m "🤖 Manual benchmark run: ${{ github.event.inputs.suite }} [skip ci]"
           git push || echo "No changes to commit"
