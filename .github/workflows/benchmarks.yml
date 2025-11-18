@@ -393,7 +393,7 @@ jobs:
 
       - name: Archive old releases (if any)
         run: |
-              # Archive releases older than 1 week (skip if no releases exist)
+          # Archive releases older than 1 week (skip if no releases exist)
               ONE_WEEK_AGO=$(date -u -d '1 week ago' +%Y-%m-%dT%H:%M:%SZ)
               
               # Get all releases with "benchmarks-" prefix (excluding "benchmarks-latest")
@@ -445,8 +445,8 @@ jobs:
         continue-on-error: true
 
       - name: Create or Update Release (benchmarks-latest)
-            uses: softprops/action-gh-release@v1
-            with:
+        uses: softprops/action-gh-release@v1
+        with:
               tag_name: benchmarks-latest
               name: Latest Benchmark Results
               body: |
@@ -459,12 +459,12 @@ jobs:
                 The GitHub Pages site automatically loads data from this release.
                 
                 This release is automatically updated on each benchmark run. Only one JSON file is kept per release.
-              files: |
-                ${{ steps.find_json.outputs.json_file }}
-              draft: false
-              prerelease: false
-            env:
-              GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          files: |
+            ${{ steps.find_json.outputs.json_file }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
