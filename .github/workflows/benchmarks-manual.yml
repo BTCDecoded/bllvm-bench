@@ -157,10 +157,15 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          # Use HTTPS with token for authentication
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git add docs/data/
-          git diff --staged --quiet || git commit -m "🤖 Manual benchmark run: ${{ github.event.inputs.suite }} [skip ci]"
-          git push || echo "No changes to commit"
+          if ! git diff --staged --quiet; then
+            git commit -m "🤖 Manual benchmark run: ${{ github.event.inputs.suite }} [skip ci]"
+            git push origin main || echo "⚠️  Push failed, but continuing..."
+          else
+            echo "No changes to commit"
+          fi
 
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4

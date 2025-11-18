@@ -255,12 +255,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
         run: |
+          # Verify token is set
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "❌ GITHUB_TOKEN (REPO_ACCESS_TOKEN) is not set!"
+            echo "   Please add REPO_ACCESS_TOKEN secret in repository settings"
+            exit 1
+          fi
+          
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # Use HTTPS with token for authentication (runner only has API access, not SSH)
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          
+          # Verify remote is set correctly
+          echo "Remote URL configured (token hidden for security)"
+          
           git add docs/data/
-          git diff --staged --quiet || git commit -m "🤖 Update benchmark data [skip ci]"
-          git push || echo "No changes to commit"
+          if ! git diff --staged --quiet; then
+            git commit -m "🤖 Update benchmark data [skip ci]"
+            echo "Pushing to origin/main..."
+            git push origin main || {
+              echo "⚠️  Push failed. Checking error..."
+              echo "   Make sure REPO_ACCESS_TOKEN has 'repo' scope and write permissions"
+              exit 1
+            }
+          else
+            echo "No changes to commit"
+          fi
 
       - name: Create Release (if on main)
         if: github.ref == 'refs/heads/main' && github.event_name == 'schedule'
