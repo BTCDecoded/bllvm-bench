@@ -201,15 +201,43 @@ jobs:
             exit 1
           fi
           
+          # Verify Core path exists (required for full coverage)
+          if [ ! -d "$CORE_PATH" ]; then
+            echo "❌ CORE_PATH does not exist: $CORE_PATH"
+            echo "   Core benchmarks are REQUIRED for full coverage"
+            exit 1
+          fi
+          echo "✅ Core path verified: $CORE_PATH"
+          
           # Verify config file exists
           if [ ! -f "$BLLVM_BENCH_CONFIG" ]; then
             echo "❌ Config file does not exist: $BLLVM_BENCH_CONFIG"
             exit 1
           fi
           
-          echo "✅ All paths verified, running benchmarks..."
+          echo "✅ All paths verified:"
+          echo "   CORE_PATH: $CORE_PATH"
+          echo "   COMMONS_CONSENSUS_PATH: $COMMONS_CONSENSUS_PATH"
+          echo "   COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
+          echo ""
+          echo "🚀 Running ALL benchmarks for FULL coverage..."
           # Run ALL benchmarks (both Core and Commons) for maximum coverage
           ./run-benchmarks.sh all 600
+          
+          # Verify benchmarks ran
+          echo ""
+          echo "=== Verifying benchmark execution ==="
+          CORE_COUNT=$(find results -name "core-*.json" -type f | wc -l)
+          COMMONS_COUNT=$(find results -name "commons-*.json" -type f | wc -l)
+          echo "Core benchmarks generated: $CORE_COUNT"
+          echo "Commons benchmarks generated: $COMMONS_COUNT"
+          if [ "$CORE_COUNT" -eq 0 ]; then
+            echo "⚠️  WARNING: No Core benchmarks generated! Full coverage not achieved."
+          fi
+          if [ "$COMMONS_COUNT" -eq 0 ]; then
+            echo "⚠️  WARNING: No Commons benchmarks generated!"
+          fi
+          echo "Total: $((CORE_COUNT + COMMONS_COUNT)) benchmark files"
 
       - name: Generate consolidated JSON
         run: |
