@@ -24,13 +24,10 @@ fn create_test_block() -> Block {
         }].into_boxed_slice(),
     }
 }
-
 fn benchmark_block_store_insert(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let storage = Storage::new(temp_dir.path()).unwrap();
-
     let block = create_test_block();
-
     c.bench_function("block_store_insert", |b| {
         b.iter(|| {
             black_box(storage.blocks().store_block(black_box(&block))).unwrap();
@@ -41,13 +38,10 @@ fn benchmark_block_store_insert(c: &mut Criterion) {
 fn benchmark_block_store_get(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let storage = Storage::new(temp_dir.path()).unwrap();
-
     let block = create_test_block();
     let hash = storage.blocks().get_block_hash(&block);
     storage.blocks().store_block(&block).unwrap();
-
     let _hash = hash; // Use hash to avoid unused variable warning
-
     c.bench_function("block_store_get", |b| {
         b.iter(|| {
             black_box(storage.blocks().get_block(black_box(&hash))).unwrap();
@@ -58,10 +52,8 @@ fn benchmark_block_store_get(c: &mut Criterion) {
 fn benchmark_chainstate_update(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let storage = Storage::new(temp_dir.path()).unwrap();
-
     let block = create_test_block();
     let hash = storage.blocks().get_block_hash(&block);
-
     c.bench_function("chainstate_update_height", |b| {
         b.iter(|| {
             black_box(
@@ -77,11 +69,9 @@ fn benchmark_chainstate_update(c: &mut Criterion) {
 fn benchmark_tx_index_insert(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let storage = Storage::new(temp_dir.path()).unwrap();
-
     let block = create_test_block();
     let block_hash = storage.blocks().get_block_hash(&block);
     let tx = &block.transactions[0];
-
     c.bench_function("tx_index_insert", |b| {
         b.iter(|| {
             black_box(storage.transactions().index_transaction(

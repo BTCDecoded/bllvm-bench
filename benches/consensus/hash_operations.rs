@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sha2::{Digest, Sha256};
 
+use bllvm_consensus::{tx_inputs, tx_outputs, OutPoint, TransactionInput, TransactionOutput};
 fn benchmark_sha256(c: &mut Criterion) {
     let data = vec![0u8; 1024];
 
@@ -203,7 +204,7 @@ fn benchmark_merkle_root_batching(c: &mut Criterion) {
         let transactions: Vec<Transaction> = (0..tx_count)
             .map(|i| Transaction {
                 version: 1u64,
-                inputs: vec![TransactionInput {
+                inputs: tx_inputs![TransactionInput {
                     prevout: OutPoint {
                         hash: [i as u8; 32],
                         index: 0u64,
@@ -211,7 +212,7 @@ fn benchmark_merkle_root_batching(c: &mut Criterion) {
                     script_sig: vec![0x51], // OP_1
                     sequence: 0xffffffffu64,
                 }],
-                outputs: vec![TransactionOutput {
+                outputs: tx_outputs![TransactionOutput {
                     value: 5000000000i64,
                     script_pubkey: vec![
                         0x76, 0xa9, 0x14, 0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a,
@@ -240,7 +241,7 @@ fn benchmark_block_validation_tx_ids(c: &mut Criterion) {
         let transactions: Vec<Transaction> = (0..tx_count)
             .map(|i| Transaction {
                 version: 1u64,
-                inputs: vec![TransactionInput {
+                inputs: tx_inputs![TransactionInput {
                     prevout: OutPoint {
                         hash: [i as u8; 32],
                         index: 0u64,
@@ -248,7 +249,7 @@ fn benchmark_block_validation_tx_ids(c: &mut Criterion) {
                     script_sig: vec![0x51],
                     sequence: 0xffffffffu64,
                 }],
-                outputs: vec![TransactionOutput {
+                outputs: tx_outputs![TransactionOutput {
                     value: 5000000000i64,
                     script_pubkey: vec![
                         0x76, 0xa9, 0x14, 0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a,
@@ -292,7 +293,7 @@ fn benchmark_sighash_batching(c: &mut Criterion) {
                     sequence: 0xffffffffu64,
                 })
                 .collect(),
-            outputs: vec![TransactionOutput {
+            outputs: tx_outputs![TransactionOutput {
                 value: 5000000000i64,
                 script_pubkey: vec![
                     0x76, 0xa9, 0x14, 0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
@@ -436,7 +437,7 @@ fn benchmark_sighash_templates(c: &mut Criterion) {
     // Create standard transaction (1 input, 1 output) - most common pattern
     let tx = Transaction {
         version: 1u64,
-        inputs: vec![TransactionInput {
+        inputs: tx_inputs![TransactionInput {
             prevout: OutPoint {
                 hash: [0u8; 32],
                 index: 0u64,
@@ -444,7 +445,7 @@ fn benchmark_sighash_templates(c: &mut Criterion) {
             script_sig: vec![0x51],
             sequence: 0xffffffffu64,
         }],
-        outputs: vec![TransactionOutput {
+        outputs: tx_outputs![TransactionOutput {
             value: 5000000000i64,
             script_pubkey: vec![
                 0x76, 0xa9, 0x14, 0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
@@ -485,8 +486,8 @@ fn benchmark_early_exit_transaction(c: &mut Criterion) {
     // Test with obviously invalid transaction (empty inputs)
     let invalid_tx = Transaction {
         version: 1u64,
-        inputs: vec![],
-        outputs: vec![TransactionOutput {
+        inputs: tx_inputs![],
+        outputs: tx_outputs![TransactionOutput {
             value: 5000000000i64,
             script_pubkey: vec![0x76, 0xa9, 0x14],
         }],
@@ -496,7 +497,7 @@ fn benchmark_early_exit_transaction(c: &mut Criterion) {
     // Test with valid transaction
     let valid_tx = Transaction {
         version: 1u64,
-        inputs: vec![TransactionInput {
+        inputs: tx_inputs![TransactionInput {
             prevout: OutPoint {
                 hash: [0u8; 32],
                 index: 0u64,
@@ -504,7 +505,7 @@ fn benchmark_early_exit_transaction(c: &mut Criterion) {
             script_sig: vec![0x51],
             sequence: 0xffffffffu64,
         }],
-        outputs: vec![TransactionOutput {
+        outputs: tx_outputs![TransactionOutput {
             value: 5000000000i64,
             script_pubkey: vec![0x76, 0xa9, 0x14],
         }],

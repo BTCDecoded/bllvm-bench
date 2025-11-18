@@ -1,6 +1,6 @@
 use bllvm_consensus::block::connect_block;
 use bllvm_consensus::segwit::Witness;
-use bllvm_consensus::{tx_inputs, tx_outputs, Block, BlockHeader, Transaction, UtxoSet};
+use bllvm_consensus::{tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UTXO, UtxoSet};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn create_test_block() -> Block {
@@ -21,12 +21,11 @@ fn create_test_block() -> Block {
         }].into_boxed_slice(),
     }
 }
-
 fn benchmark_connect_block(c: &mut Criterion) {
     let block = create_test_block();
+    // Coinbase transaction doesn't need UTXOs, so empty set is fine
     let utxo_set = UtxoSet::new();
     let witnesses: Vec<Witness> = block.transactions.iter().map(|_| Vec::new()).collect();
-
     c.bench_function("connect_block", |b| {
         b.iter(|| {
             let _result = connect_block(
@@ -36,29 +35,61 @@ fn benchmark_connect_block(c: &mut Criterion) {
                 black_box(0),
                 black_box(None),
             );
-            // Ignore errors for benchmarking (they're expected for invalid test data)
+            // Coinbase-only block, so validation should succeed
         })
     });
 }
 
 fn benchmark_connect_block_multi_tx(c: &mut Criterion) {
-    let mut transactions = vec![Transaction {
+    // Create coinbase transaction
+    let coinbase = Transaction {
         version: 1,
-        inputs: tx_inputs![],
-        outputs: tx_outputs![],
+        inputs: tx_inputs![TransactionInput {
+            prevout: OutPoint {
+                hash: [0; 32],
+                index: 0xffffffff, // Coinbase
+            },
+            script_sig: vec![0x51; 4],
+            sequence: 0xffffffff,
+        }],
+        outputs: tx_outputs![TransactionOutput {
+            value: 50_000_000_000,
+            script_pubkey: vec![0x51],
+        }],
         lock_time: 0,
-    }];
-
-    // Add 10 regular transactions
-    for _ in 0..10 {
+    };
+    // Add 10 regular transactions with inputs that reference UTXOs
+    let mut transactions = vec![coinbase];
+    let mut utxo_set = UtxoSet::new();
+    
+    for i in 0..10 {
+        // Create a UTXO that will be spent by this transaction
+        let prev_outpoint = OutPoint {
+            hash: [i as u8; 32],
+            index: 0,
+        };
+        let prev_utxo = UTXO {
+            value: 10_000_000,
+            script_pubkey: vec![0x51; 25],
+            height: 0,
+        };
+        utxo_set.insert(prev_outpoint.clone(), prev_utxo);
+        
+        // Create transaction that spends the UTXO
         transactions.push(Transaction {
             version: 1,
-            inputs: tx_inputs![],
-            outputs: tx_outputs![],
+            inputs: tx_inputs![TransactionInput {
+                prevout: prev_outpoint.clone(),
+                script_sig: vec![0x51; 20],
+                sequence: 0xffffffff,
+            }],
+            outputs: tx_outputs![TransactionOutput {
+                value: 5_000_000,
+                script_pubkey: vec![0x51; 25],
+            }],
             lock_time: 0,
         });
     }
-
     let block = Block {
         header: BlockHeader {
             version: 1,
@@ -70,10 +101,7 @@ fn benchmark_connect_block_multi_tx(c: &mut Criterion) {
         },
         transactions: transactions.into_boxed_slice(),
     };
-
-    let utxo_set = UtxoSet::new();
     let witnesses: Vec<Witness> = block.transactions.iter().map(|_| Vec::new()).collect();
-
     c.bench_function("connect_block_multi_tx", |b| {
         b.iter(|| {
             let _result = connect_block(
@@ -83,11 +111,10 @@ fn benchmark_connect_block_multi_tx(c: &mut Criterion) {
                 black_box(0),
                 black_box(None),
             );
-            // Ignore errors for benchmarking
+            // Now with valid UTXOs, this should do actual validation work
         })
     });
 }
-
 criterion_group!(
     benches,
     benchmark_connect_block,

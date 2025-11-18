@@ -27,11 +27,9 @@ fn create_test_block_with_txs(tx_count: usize) -> Block {
             .into_boxed_slice(),
     }
 }
-
 fn benchmark_compact_block_creation(c: &mut Criterion) {
     let block = create_test_block_with_txs(100);
     let prefilled_indices = HashSet::new();
-
     c.bench_function("create_compact_block_100_tx", |b| {
         b.iter(|| {
             black_box(create_compact_block(
@@ -41,21 +39,12 @@ fn benchmark_compact_block_creation(c: &mut Criterion) {
             ));
         })
     });
-}
-
 fn benchmark_compact_block_vs_full_block_size(c: &mut Criterion) {
     let block = create_test_block_with_txs(1000);
-    let prefilled_indices = HashSet::new();
-
     c.bench_function("compact_block_size_1000_tx", |b| {
-        b.iter(|| {
             let compact = create_compact_block(&block, 12345, &prefilled_indices);
             // Estimate size (simplified)
             black_box(compact.short_ids.len() * 6 + compact.prefilled_txs.len());
-        })
-    });
-}
-
 criterion_group!(
     benches,
     benchmark_compact_block_creation,

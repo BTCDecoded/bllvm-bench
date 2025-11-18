@@ -23,7 +23,6 @@ fn create_test_transaction() -> Transaction {
 
 fn benchmark_transaction_validation(c: &mut Criterion) {
     let tx = create_test_transaction();
-
     c.bench_function("check_transaction", |b| {
         b.iter(|| black_box(check_transaction(black_box(&tx))))
     });
@@ -53,7 +52,6 @@ fn benchmark_transaction_validation_complex(c: &mut Criterion) {
             .into(),
         lock_time: 0,
     };
-
     c.bench_function("check_transaction_complex", |b| {
         b.iter(|| black_box(check_transaction(black_box(&tx))))
     });

@@ -46,18 +46,15 @@ fn create_segwit_transaction() -> (Transaction, Witness) {
         }],
         lock_time: 0,
     };
-
     let witness: Witness = vec![
         vec![0x30, 0x44, 0x02, 0x20, 0x01, 0x02], // Signature
         vec![0x03, 0x04, 0x05],                   // Public key
     ];
-
     (tx, witness)
 }
 
 fn benchmark_is_segwit_transaction(c: &mut Criterion) {
     let tx = create_test_transaction();
-
     c.bench_function("is_segwit_transaction", |b| {
         b.iter(|| black_box(is_segwit_transaction(black_box(&tx))))
     });
@@ -65,7 +62,6 @@ fn benchmark_is_segwit_transaction(c: &mut Criterion) {
 
 fn benchmark_calculate_transaction_weight(c: &mut Criterion) {
     let tx = create_test_transaction();
-
     c.bench_function("calculate_transaction_weight_no_witness", |b| {
         b.iter(|| {
             black_box(calculate_transaction_weight(
@@ -74,9 +70,7 @@ fn benchmark_calculate_transaction_weight(c: &mut Criterion) {
             ))
         })
     });
-
     let (segwit_tx, witness) = create_segwit_transaction();
-
     c.bench_function("calculate_transaction_weight_with_witness", |b| {
         b.iter(|| {
             black_box(calculate_transaction_weight(
@@ -100,9 +94,7 @@ fn benchmark_calculate_block_weight(c: &mut Criterion) {
         },
         transactions: vec![tx].into_boxed_slice(),
     };
-
     let witnesses: Vec<Witness> = vec![vec![]];
-
     c.bench_function("calculate_block_weight", |b| {
         b.iter(|| {
             black_box(calculate_block_weight(

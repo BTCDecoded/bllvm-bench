@@ -33,10 +33,15 @@ thiserror = "1.0"
 rand = "0.8"
 sha2 = "0.10"
 tempfile = "3.8"
+ripemd = "0.1"
+secp256k1 = "0.28"
 
 # For CLI tool to run shell benchmarks
 clap = { version = "4.4", features = ["derive"] }
 tokio = { version = "1.35", features = ["full"] }
+
+# HTTP client for RPC calls
+reqwest = { version = "0.11", features = ["json"] }
 
 [features]
 default = []
@@ -94,6 +99,21 @@ name = "performance_focused"
 path = "benches/consensus/performance_focused.rs"
 harness = false
 
+[[bench]]
+name = "merkle_tree_precomputed"
+path = "benches/consensus/merkle_tree_precomputed.rs"
+harness = false
+
+[[bench]]
+name = "script_verification"
+path = "benches/consensus/script_verification.rs"
+harness = false
+
+[[bench]]
+name = "block_assembly"
+path = "benches/consensus/block_assembly.rs"
+harness = false
+
 # Benchmark targets - Node layer
 [[bench]]
 name = "compact_blocks"
@@ -113,6 +133,17 @@ harness = false
 [[bench]]
 name = "transport_comparison"
 path = "benches/node/transport_comparison.rs"
+harness = false
+
+[[bench]]
+name = "parallel_block_validation"
+path = "benches/node/parallel_block_validation.rs"
+harness = false
+
+# Integration benchmarks
+[[bench]]
+name = "node_sync_and_rpc"
+path = "benches/integration/node_sync_and_rpc.rs"
 harness = false
 
 [profile.bench]
