@@ -244,9 +244,12 @@
                     console.log('✅ Loaded from main branch');
                 }
 
-                const data = jsonData;
+                if (!jsonData || !jsonData.benchmarks) {
+                    throw new Error('Invalid benchmark data format: missing "benchmarks" array');
+                }
+
+                renderBenchmarks(jsonData.benchmarks);
                 loadingEl.style.display = 'none';
-                renderBenchmarks(data);
                 contentEl.style.display = 'block';
             } catch (error) {
                 loadingEl.style.display = 'none';
