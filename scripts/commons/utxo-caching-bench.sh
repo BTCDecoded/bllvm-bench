@@ -5,12 +5,12 @@
 
 set -e
 
-OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
-# OUTPUT_DIR already set by get_output_dir
-mkdir -p "$OUTPUT_DIR"
-
+# Source common functions FIRST
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../shared/common.sh"
+
+OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
+mkdir -p "$OUTPUT_DIR"
 BENCH_DIR="$BLLVM_BENCH_ROOT"
 OUTPUT_FILE="$OUTPUT_DIR/commons-utxo-caching-bench-$(date +%Y%m%d-%H%M%S).json"
 
