@@ -36,10 +36,34 @@ BENCH_START=$(date +%s)
 
 # Run block validation benchmarks with production features
 echo "Running block validation benchmarks with production features..."
-cargo bench --bench block_validation_realistic --features production 2>&1 | tee /tmp/block_validation_bench.log || {
-    echo "Realistic benchmark failed, trying basic benchmark..."
-    cargo bench --bench block_validation --features production 2>&1 | tee /tmp/block_validation_bench.log || true
-}
+BENCH_SUCCESS=false
+
+if cargo bench --bench block_validation_realistic --features production 2>&1 | tee /tmp/block_validation_bench.log; then
+    BENCH_SUCCESS=true
+    echo "✅ block_validation_realistic benchmark completed"
+else
+    echo "⚠️  block_validation_realistic failed, trying basic benchmark..."
+    if cargo bench --bench block_validation --features production 2>&1 | tee /tmp/block_validation_bench.log; then
+        BENCH_SUCCESS=true
+        echo "✅ block_validation benchmark completed"
+    else
+        echo "❌ All block validation benchmarks failed"
+        echo "   Check /tmp/block_validation_bench.log for errors"
+    fi
+fi
+
+# Verify Criterion output was generated
+if [ "$BENCH_SUCCESS" = "true" ]; then
+    if [ ! -d "$CRITERION_DIR" ]; then
+        echo "⚠️  WARNING: Criterion directory does not exist: $CRITERION_DIR"
+        echo "   Benchmark may have run but no output was generated"
+        BENCH_SUCCESS=false
+    else
+        echo "✅ Criterion directory exists: $CRITERION_DIR"
+        echo "   Available benchmarks:"
+        find "$CRITERION_DIR" -type d -maxdepth 1 2>/dev/null | sed 's|.*/||' | grep -v "^$" | head -10 || echo "   (none found)"
+    fi
+fi
 
 BENCH_END=$(date +%s)
 BENCH_TIME=$((BENCH_END - BENCH_START))
@@ -49,7 +73,22 @@ CRITERION_DIR="$BENCH_DIR/target/criterion"
 CONNECT_BLOCK_TIME_MS="0"
 CONNECT_BLOCK_MULTI_TX_TIME_MS="0"
 
+echo ""
 echo "Searching for Criterion results in: $CRITERION_DIR"
+
+# If benchmark failed, exit early with error JSON
+if [ "$BENCH_SUCCESS" = "false" ]; then
+    echo "❌ Benchmark failed - cannot extract timing data"
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "Benchmark execution failed",
+  "log_file": "/tmp/block_validation_bench.log",
+  "note": "Check log file for details. Criterion output may not have been generated."
+}
+EOF
+    exit 1
+fi
 
 # Try to find any connect_block benchmark (search more broadly)
 ESTIMATES_FILE=""

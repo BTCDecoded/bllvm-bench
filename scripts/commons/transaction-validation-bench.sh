@@ -37,10 +37,39 @@ echo "      This matches Core's CheckBlock operation exactly"
 echo ""
 
 LOG_FILE="/tmp/commons-tx-validation.log"
-cargo bench --bench check_block --features production 2>&1 | tee "$LOG_FILE" || true
+BENCH_SUCCESS=false
+
+if cargo bench --bench check_block --features production 2>&1 | tee "$LOG_FILE"; then
+    BENCH_SUCCESS=true
+    echo "✅ check_block benchmark completed"
+else
+    echo "❌ check_block benchmark failed - check $LOG_FILE"
+fi
 
 CRITERION_DIR="$BENCH_DIR/target/criterion"
 BENCHMARKS="[]"
+
+# Verify Criterion output exists
+if [ "$BENCH_SUCCESS" = "true" ] && [ ! -d "$CRITERION_DIR" ]; then
+    echo "⚠️  WARNING: Criterion directory does not exist: $CRITERION_DIR"
+    BENCH_SUCCESS=false
+fi
+
+if [ "$BENCH_SUCCESS" = "false" ]; then
+    echo "⚠️  Benchmark failed - outputting error JSON"
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "Benchmark execution failed",
+  "log_file": "$LOG_FILE",
+  "measurement_method": "Criterion check_block benchmark (matches Core's DeserializeAndCheckBlockTest)",
+  "benchmark_suite": "check_block",
+  "benchmarks": [],
+  "note": "Check log file for details"
+}
+EOF
+    exit 0
+fi
 
 for bench_dir in "$CRITERION_DIR"/check_block*; do
     if [ -d "$bench_dir" ] && [ -f "$bench_dir/base/estimates.json" ]; then

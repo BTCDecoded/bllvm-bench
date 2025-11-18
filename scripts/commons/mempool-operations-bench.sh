@@ -30,11 +30,40 @@ cd "$BENCH_DIR"
 
 echo "Running mempool operations benchmarks..."
 LOG_FILE="/tmp/commons-mempool.log"
-cargo bench --bench mempool_operations --features production 2>&1 | tee "$LOG_FILE" || true
+BENCH_SUCCESS=false
+
+if cargo bench --bench mempool_operations --features production 2>&1 | tee "$LOG_FILE"; then
+    BENCH_SUCCESS=true
+    echo "✅ mempool_operations benchmark completed"
+else
+    echo "❌ mempool_operations benchmark failed - check $LOG_FILE"
+fi
 
 # Extract from Criterion JSON files (more reliable than parsing stdout)
 CRITERION_DIR="$BENCH_DIR/target/criterion"
 BENCHMARKS="[]"
+
+# Verify Criterion output exists
+if [ "$BENCH_SUCCESS" = "true" ] && [ ! -d "$CRITERION_DIR" ]; then
+    echo "⚠️  WARNING: Criterion directory does not exist: $CRITERION_DIR"
+    BENCH_SUCCESS=false
+fi
+
+if [ "$BENCH_SUCCESS" = "false" ]; then
+    echo "⚠️  Benchmark failed - outputting error JSON"
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "Benchmark execution failed",
+  "log_file": "$LOG_FILE",
+  "measurement_method": "Criterion benchmarks (actual mempool operations)",
+  "benchmark_suite": "mempool_operations",
+  "benchmarks": [],
+  "note": "Check log file for details"
+}
+EOF
+    exit 0
+fi
 
 # Look for mempool operation benchmarks
 for bench_dir in "$CRITERION_DIR"/accept_to_memory_pool* "$CRITERION_DIR"/is_standard_tx* "$CRITERION_DIR"/replacement_checks* "$CRITERION_DIR"/mempool_*; do
