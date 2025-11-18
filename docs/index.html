@@ -352,18 +352,33 @@
                         // Extract time from various possible structures
                         const coreTime = extractTime(core);
                         const commonsTime = extractTime(commons);
-                        const winner = comparison.winner || 'N/A';
+                        const winner = comparison.winner || (coreTime !== '—' && commonsTime !== '—' ? 'N/A' : (coreTime !== '—' ? 'core-only' : 'commons-only'));
                         const speedup = comparison.speedup || comparison.speed_difference || '';
                         
                         const winnerClass = winner === 'core' ? 'winner-core' : 
-                                           winner === 'commons' ? 'winner-commons' : 'winner-tie';
+                                           winner === 'commons' ? 'winner-commons' : 
+                                           winner === 'core-only' ? 'winner-core' :
+                                           winner === 'commons-only' ? 'winner-commons' :
+                                           'winner-tie';
+                        
+                        // Format winner display
+                        let winnerDisplay = '—';
+                        if (winner === 'core') {
+                            winnerDisplay = '🏆 Core';
+                        } else if (winner === 'commons') {
+                            winnerDisplay = '🏆 Commons';
+                        } else if (winner === 'core-only') {
+                            winnerDisplay = 'Core Only';
+                        } else if (winner === 'commons-only') {
+                            winnerDisplay = 'Commons Only';
+                        }
                         
                         html += '<tr>';
                         html += `<td><strong>${bench.name || 'Unknown'}</strong></td>`;
-                        html += `<td>${coreTime}</td>`;
-                        html += `<td>${commonsTime}</td>`;
-                        html += `<td class="${winnerClass}">${winner === 'core' ? '🏆 Core' : winner === 'commons' ? '🏆 Commons' : '—'}</td>`;
-                        html += `<td class="speedup">${speedup}</td>`;
+                        html += `<td style="text-align: right;">${coreTime}</td>`;
+                        html += `<td style="text-align: right;">${commonsTime}</td>`;
+                        html += `<td class="${winnerClass}" style="text-align: center;">${winnerDisplay}</td>`;
+                        html += `<td class="speedup" style="text-align: right;">${speedup || '—'}</td>`;
                         html += '</tr>';
                     }
                     
