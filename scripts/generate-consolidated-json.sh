@@ -76,7 +76,9 @@ while IFS= read -r json_file; do
         
         # Add to consolidated JSON (initialize benchmark entry if it doesn't exist)
         jq --arg key "$BENCH_KEY" --argfile data "$json_file" \
-           '.benchmarks[$key] = (.benchmarks[$key] // {}) | .benchmarks[$key].core = $data' \
+           '.benchmarks[$key] = (.benchmarks[$key] // {}) | 
+            .benchmarks[$key].name = $key |
+            .benchmarks[$key].core = $data' \
            "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" && mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
         
     elif echo "$BENCH_NAME" | grep -q "^commons-"; then
@@ -89,7 +91,9 @@ while IFS= read -r json_file; do
         
         # Add to consolidated JSON (initialize benchmark entry if it doesn't exist)
         jq --arg key "$BENCH_KEY" --argfile data "$json_file" \
-           '.benchmarks[$key] = (.benchmarks[$key] // {}) | .benchmarks[$key].commons = $data' \
+           '.benchmarks[$key] = (.benchmarks[$key] // {}) | 
+            .benchmarks[$key].name = $key |
+            .benchmarks[$key].commons = $data' \
            "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" && mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
         
         # If both core and commons exist for same benchmark, it's a comparison
