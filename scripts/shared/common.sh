@@ -45,8 +45,39 @@ fi
 # Validate required paths (allow Commons-only runs)
 if [ -z "$COMMONS_CONSENSUS_PATH" ]; then
     echo "❌ Error: Commons consensus path not discovered" >&2
+    echo "   BLLVM_BENCH_ROOT: ${BLLVM_BENCH_ROOT:-NOT SET}" >&2
+    echo "   Current directory: $(pwd)" >&2
     echo "   Please set paths in config/config.toml or ensure Commons are in standard locations" >&2
-    exit 1
+    echo "" >&2
+    echo "   Trying manual discovery..." >&2
+    # Last resort: try to find it from common locations
+    for path in "../bllvm-consensus" "../../bllvm-consensus" "$HOME/src/bllvm-consensus" "$(dirname "$BLLVM_BENCH_ROOT")/bllvm-consensus" "$(dirname "$(dirname "$BLLVM_BENCH_ROOT")")/commons/bllvm-consensus"; do
+        if [ -d "$path" ] && [ -f "$path/Cargo.toml" ] && grep -q "bllvm-consensus" "$path/Cargo.toml" 2>/dev/null; then
+            abs_path=$(cd "$path" 2>/dev/null && pwd || echo "")
+            if [ -n "$abs_path" ]; then
+                COMMONS_CONSENSUS_PATH="$abs_path"
+                export COMMONS_CONSENSUS_PATH
+                echo "   ✅ Found: $COMMONS_CONSENSUS_PATH" >&2
+                # Also try to find bllvm-node
+                for node_path in "$(dirname "$abs_path")/bllvm-node" "$abs_path/../bllvm-node"; do
+                    if [ -d "$node_path" ] && [ -f "$node_path/Cargo.toml" ] && grep -q "bllvm-node" "$node_path/Cargo.toml" 2>/dev/null; then
+                        abs_node_path=$(cd "$node_path" 2>/dev/null && pwd || echo "")
+                        if [ -n "$abs_node_path" ]; then
+                            COMMONS_NODE_PATH="$abs_node_path"
+                            export COMMONS_NODE_PATH
+                            echo "   ✅ Found node: $COMMONS_NODE_PATH" >&2
+                            break
+                        fi
+                    fi
+                done
+                break
+            fi
+        fi
+    done
+    
+    if [ -z "$COMMONS_CONSENSUS_PATH" ]; then
+        exit 1
+    fi
 fi
 
 # Set up results directory
