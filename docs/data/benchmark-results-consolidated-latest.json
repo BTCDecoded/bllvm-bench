@@ -1,12 +1,62 @@
 {
   "timestamp": "2025-11-18T19:30:23Z",
-  "suite_directory": "/home/acolyte/src/node-comparison/commons/bllvm-bench/results/suite-commons-only-20251118-190808",
-  "generated_by": "bllvm-bench consolidated JSON generator",
-  "benchmarks": {},
   "summary": {
-    "total_benchmarks": 13,
+    "total_benchmarks": 6,
     "core_benchmarks": 0,
     "commons_benchmarks": 6,
     "comparisons": 0
+  },
+  "benchmarks": {
+    "block-validation": {
+      "commons": {
+        "benchmarks": [
+          {
+            "name": "connect_block",
+            "time_per_block_ms": 0.044149,
+            "blocks_per_second": 22650.57
+          }
+        ]
+      }
+    },
+    "transaction-validation": {
+      "commons": {
+        "benchmarks": [
+          {
+            "name": "check_block",
+            "time_ms": 1.334256
+          }
+        ]
+      }
+    },
+    "mempool-operations": {
+      "commons": {
+        "benchmarks": [
+          {
+            "name": "accept_to_memory_pool_complex",
+            "time_ms": 0.1
+          }
+        ]
+      }
+    },
+    "merkle-tree": {
+      "commons": {
+        "benchmarks": [
+          {
+            "name": "compute_merkle_root",
+            "time_ms": 0.05
+          }
+        ]
+      }
+    },
+    "hash-operations": {
+      "commons": {
+        "benchmarks": [
+          {
+            "name": "sha256_1kb",
+            "time_ms": 0.001
+          }
+        ]
+      }
+    }
   }
 }
