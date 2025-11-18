@@ -82,7 +82,25 @@ run_benchmark() {
     echo "Running: $name (timeout: ${timeout_sec}s)"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    if [ -f "$script" ]; then
+    if [ ! -f "$script" ]; then
+        echo "⚠️  Script not found: $script"
+        BENCHMARKS_FAILED+=("$name (missing)")
+        echo ""
+        return 1
+    fi
+    
+    # Check if timeout command exists
+    if ! command -v timeout >/dev/null 2>&1; then
+        echo "⚠️  timeout command not found, running without timeout"
+        if bash "$script" "$SUITE_DIR" 2>&1 | tee "$SUITE_DIR/${name}.log"; then
+            BENCHMARKS_RUN+=("$name")
+            echo "✅ $name completed"
+        else
+            BENCHMARKS_FAILED+=("$name")
+            echo "❌ $name failed (check log: $SUITE_DIR/${name}.log)"
+        fi
+    else
+        # Run with timeout
         if timeout "$timeout_sec" bash "$script" "$SUITE_DIR" 2>&1 | tee "$SUITE_DIR/${name}.log"; then
             BENCHMARKS_RUN+=("$name")
             echo "✅ $name completed"
@@ -93,12 +111,9 @@ run_benchmark() {
                 echo "⏱️  $name timed out after ${timeout_sec}s"
             else
                 BENCHMARKS_FAILED+=("$name")
-                echo "❌ $name failed (check log)"
+                echo "❌ $name failed (check log: $SUITE_DIR/${name}.log)"
             fi
         fi
-    else
-        echo "⚠️  Script not found: $script"
-        BENCHMARKS_FAILED+=("$name (missing)")
     fi
     echo ""
 }
