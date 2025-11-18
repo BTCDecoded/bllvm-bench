@@ -55,7 +55,7 @@ jobs:
           git push || echo "No changes to commit"
 
       - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ github.event.inputs.suite }}
           path: |
