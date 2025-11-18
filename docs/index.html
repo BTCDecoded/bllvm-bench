@@ -248,7 +248,7 @@
                     throw new Error('Invalid benchmark data format: missing "benchmarks" array');
                 }
 
-                renderBenchmarks(jsonData.benchmarks);
+                renderBenchmarks(jsonData);
                 loadingEl.style.display = 'none';
                 contentEl.style.display = 'block';
             } catch (error) {
