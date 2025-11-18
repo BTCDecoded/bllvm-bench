@@ -123,6 +123,19 @@ jobs:
             exit 1
           fi
           
+          # Verify symlinks for Cargo.toml
+          if [ ! -d "$RELATIVE_CONSENSUS_DIR" ]; then
+            echo "⚠️  Warning: Cargo.toml path dependency not found: $RELATIVE_CONSENSUS_DIR"
+            echo "   Commons benchmarks may fail to compile"
+          else
+            echo "✅ Cargo.toml path dependency found: $RELATIVE_CONSENSUS_DIR"
+          fi
+          if [ ! -d "$RELATIVE_NODE_DIR" ]; then
+            echo "⚠️  Warning: Cargo.toml path dependency not found: $RELATIVE_NODE_DIR"
+          else
+            echo "✅ Cargo.toml path dependency found: $RELATIVE_NODE_DIR"
+          fi
+          
           # Create config.toml with absolute paths
           mkdir -p config
           {
