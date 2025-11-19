@@ -87,7 +87,8 @@ BENCHMARKS="[]"
 
 if [ "$RIPEMD160_TIME_NS" != "0" ]; then
     TIME_MS=$(awk "BEGIN {printf \"%.6f\", $RIPEMD160_TIME_NS / 1000000}")
-    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "BenchRIPEMD160" --arg time "$TIME_MS" --arg timens "$RIPEMD160_TIME_NS" '. += [{"name": $name, "time_ms": ($time | tonumber), "time_ns": ($timens | tonumber), "ops_per_sec": ($RIPEMD160_OPS | tonumber)}]' 2>/dev/null || echo "$BENCHMARKS")
+    # Use direct number substitution (no --argjson needed)
+    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "BenchRIPEMD160" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $RIPEMD160_TIME_NS, \"ops_per_sec\": $RIPEMD160_OPS}]" 2>/dev/null || echo "$BENCHMARKS")
 fi
 
 cat > "$OUTPUT_FILE" << EOF

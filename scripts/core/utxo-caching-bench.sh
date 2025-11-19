@@ -97,17 +97,20 @@ BENCHMARKS="[]"
 
 if [ "$UTXO_INSERT_TIME_NS" != "0" ] && [ -n "$UTXO_INSERT_TIME_NS" ]; then
     TIME_MS=$(awk "BEGIN {printf \"%.6f\", $UTXO_INSERT_TIME_NS / 1000000}" 2>/dev/null || echo "0")
-    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "UTXOInsert" --arg time "$TIME_MS" --arg timens "$UTXO_INSERT_TIME_NS" --arg ops "$UTXO_INSERT_OPS" '. += [{"name": $name, "time_ms": ($time | tonumber), "time_ns": ($timens | tonumber), "ops_per_sec": ($ops | tonumber)}]' 2>/dev/null || echo "$BENCHMARKS")
+    # Use direct number substitution (no --argjson needed)
+    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "UTXOInsert" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $UTXO_INSERT_TIME_NS, \"ops_per_sec\": $UTXO_INSERT_OPS}]" 2>/dev/null || echo "$BENCHMARKS")
 fi
 
 if [ "$UTXO_GET_TIME_NS" != "0" ] && [ -n "$UTXO_GET_TIME_NS" ]; then
     TIME_MS=$(awk "BEGIN {printf \"%.6f\", $UTXO_GET_TIME_NS / 1000000}" 2>/dev/null || echo "0")
-    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "UTXOGet" --arg time "$TIME_MS" --arg timens "$UTXO_GET_TIME_NS" --arg ops "$UTXO_GET_OPS" '. += [{"name": $name, "time_ms": ($time | tonumber), "time_ns": ($timens | tonumber), "ops_per_sec": ($ops | tonumber)}]' 2>/dev/null || echo "$BENCHMARKS")
+    # Use direct number substitution (no --argjson needed)
+    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "UTXOGet" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $UTXO_GET_TIME_NS, \"ops_per_sec\": $UTXO_GET_OPS}]" 2>/dev/null || echo "$BENCHMARKS")
 fi
 
 if [ "$UTXO_REMOVE_TIME_NS" != "0" ] && [ -n "$UTXO_REMOVE_TIME_NS" ]; then
     TIME_MS=$(awk "BEGIN {printf \"%.6f\", $UTXO_REMOVE_TIME_NS / 1000000}" 2>/dev/null || echo "0")
-    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "UTXORemove" --arg time "$TIME_MS" --arg timens "$UTXO_REMOVE_TIME_NS" --arg ops "$UTXO_REMOVE_OPS" '. += [{"name": $name, "time_ms": ($time | tonumber), "time_ns": ($timens | tonumber), "ops_per_sec": ($ops | tonumber)}]' 2>/dev/null || echo "$BENCHMARKS")
+    # Use direct number substitution (no --argjson needed)
+    BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "UTXORemove" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $UTXO_REMOVE_TIME_NS, \"ops_per_sec\": $UTXO_REMOVE_OPS}]" 2>/dev/null || echo "$BENCHMARKS")
 fi
 
 cat > "$OUTPUT_FILE" << EOF

@@ -72,7 +72,8 @@ if "$BENCH_BITCOIN" -filter="DuplicateInputs" -min-time=500 2>&1 | tee "$LOG_FIL
             
             if [ -n "$BENCH_NAME" ] && [ -n "$TIME_NS" ] && [ "$TIME_NS" != "0" ] && [ "$TIME_NS" != "" ]; then
                 TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}")
-                BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "" ". += [{"name": $name, "time_ms": , "time_ns": }]" 2>/dev/null || echo "$BENCHMARKS")
+                # Use direct number substitution (no --argjson needed)
+                BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$BENCH_NAME" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
             fi
         fi
     done < "$LOG_FILE"
