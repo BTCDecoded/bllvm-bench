@@ -32,15 +32,61 @@ echo "Running mempool operations benchmarks..."
 LOG_FILE="/tmp/commons-mempool.log"
 BENCH_SUCCESS=false
 
-# Try all possible benchmark names
-for bench_name in "mempool_operations" "mempool" "mempool_acceptance"; do
+# Define Criterion directory BEFORE using it
+CRITERION_DIR="$BENCH_DIR/target/criterion"
+
+# Try all possible benchmark names (matching Cargo.toml)
+for bench_name in "mempool_operations"; do
     echo "Trying benchmark: $bench_name"
-    if cargo bench --bench "$bench_name" --features production 2>&1 | tee "$LOG_FILE"; then
-        BENCH_SUCCESS=true
-        echo "✅ $bench_name benchmark completed"
-        break
+    # Try without --features production first
+    if cargo bench --bench "$bench_name" 2>&1 | tee "$LOG_FILE"; then
+        # Check if compilation actually succeeded
+        if grep -q "error:" "$LOG_FILE" || grep -q "warning: build failed" "$LOG_FILE"; then
+            echo "⚠️  $bench_name compilation failed, trying with --features production..."
+            # Try with production features as fallback
+            if cargo bench --bench "$bench_name" --features production 2>&1 | tee -a "$LOG_FILE"; then
+                # Check again for compilation errors
+                if ! grep -q "error:" "$LOG_FILE" && ! grep -q "warning: build failed" "$LOG_FILE"; then
+                    # Verify Criterion output was actually generated
+                    if [ -d "$CRITERION_DIR" ] && find "$CRITERION_DIR" -name "estimates.json" -type f | grep -q .; then
+                        BENCH_SUCCESS=true
+                        echo "✅ $bench_name benchmark completed (with production features)"
+                        break
+                    fi
+                fi
+            fi
+        else
+            # Verify Criterion output was actually generated
+            if [ -d "$CRITERION_DIR" ] && find "$CRITERION_DIR" -name "estimates.json" -type f | grep -q .; then
+                BENCH_SUCCESS=true
+                echo "✅ $bench_name benchmark completed"
+                break
+            else
+                echo "⚠️  $bench_name ran but no Criterion output found, trying with --features production..."
+                # Try with production features as fallback
+                if cargo bench --bench "$bench_name" --features production 2>&1 | tee -a "$LOG_FILE"; then
+                    if [ -d "$CRITERION_DIR" ] && find "$CRITERION_DIR" -name "estimates.json" -type f | grep -q .; then
+                        BENCH_SUCCESS=true
+                        echo "✅ $bench_name benchmark completed (with production features)"
+                        break
+                    fi
+                fi
+            fi
+        fi
     else
-        echo "⚠️  $bench_name failed, trying next..."
+        echo "⚠️  $bench_name failed, trying with --features production..."
+        # Try with production features as fallback
+        if cargo bench --bench "$bench_name" --features production 2>&1 | tee -a "$LOG_FILE"; then
+            # Check for compilation errors
+            if ! grep -q "error:" "$LOG_FILE" && ! grep -q "warning: build failed" "$LOG_FILE"; then
+                # Verify Criterion output was actually generated
+                if [ -d "$CRITERION_DIR" ] && find "$CRITERION_DIR" -name "estimates.json" -type f | grep -q .; then
+                    BENCH_SUCCESS=true
+                    echo "✅ $bench_name benchmark completed (with production features)"
+                    break
+                fi
+            fi
+        fi
     fi
 done
 
@@ -88,15 +134,14 @@ for bench_dir in "$CRITERION_DIR"/accept_to_memory_pool* "$CRITERION_DIR"/is_sta
             # Extract statistical data
             STATS=$("$BLLVM_BENCH_ROOT/scripts/shared/extract-criterion-stats.sh" "$bench_dir/base/estimates.json")
             
+            # Use direct number substitution (no --argjson needed)
             BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$BENCH_NAME" \
-                --argjson time_ms "$TIME_MS" \
-                --argjson time_ns "$TIME_NS_INT" \
-                --argjson stats "$STATS" \
-                '. += [{
-                    "name": $name,
-                    "time_ms": $time_ms,
-                    "time_ns": $time_ns,
-                    "statistics": $stats
+                --slurpfile stats "$STATS" \
+                ". += [{
+                    \"name\": \$name,
+                    \"time_ms\": $TIME_MS,
+                    \"time_ns\": $TIME_NS_INT,
+                    "statistics": $stats[0]
                 }]' 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi

@@ -100,49 +100,45 @@ for bench_name in $(echo "$CURRENT_BENCHMARKS" | jq -r 'keys[]' 2>/dev/null); do
     SPEEDUP=$(awk "BEGIN {if ($BASELINE_TIME > 0 && $CURRENT_TIME > 0) printf \"%.2fx\", $BASELINE_TIME / $CURRENT_TIME; else print \"1.00x\"}" 2>/dev/null || echo "1.00x")
     
     # Determine if regression (slower) or improvement (faster)
+    # Validate numbers first
+    CURRENT_TIME_VAL=$(printf "%.2f" "$CURRENT_TIME" 2>/dev/null || echo "0.0")
+    BASELINE_TIME_VAL=$(printf "%.2f" "$BASELINE_TIME" 2>/dev/null || echo "0.0")
+    CHANGE_PCT_VAL=$(printf "%.2f" "$CHANGE_PCT" 2>/dev/null || echo "0.0")
+    
     if awk "BEGIN {exit !($CHANGE_PCT > $REGRESSION_THRESHOLD * 100)}" 2>/dev/null; then
-        # Regression detected
+        # Regression detected - use direct number substitution
         REGRESSIONS=$(echo "$REGRESSIONS" | jq --arg name "$bench_name" \
-            --argjson current "$CURRENT_TIME" \
-            --argjson baseline "$BASELINE_TIME" \
-            --argjson change "$CHANGE_PCT" \
             --arg speedup "$SPEEDUP" \
-            '. += [{
-                "benchmark": $name,
-                "current_time_ms": ($current | tonumber),
-                "baseline_time_ms": ($baseline | tonumber),
-                "change_percent": ($change | tonumber),
-                "speedup": $speedup,
-                "status": "regression"
-            }]' 2>/dev/null || echo "$REGRESSIONS")
+            ". += [{
+                \"benchmark\": \$name,
+                \"current_time_ms\": $CURRENT_TIME_VAL,
+                \"baseline_time_ms\": $BASELINE_TIME_VAL,
+                \"change_percent\": $CHANGE_PCT_VAL,
+                \"speedup\": \$speedup,
+                \"status\": \"regression\"
+            }]" 2>/dev/null || echo "$REGRESSIONS")
     elif awk "BEGIN {exit !($CHANGE_PCT < -$REGRESSION_THRESHOLD * 100)}" 2>/dev/null; then
-        # Improvement detected
+        # Improvement detected - use direct number substitution
         IMPROVEMENTS=$(echo "$IMPROVEMENTS" | jq --arg name "$bench_name" \
-            --argjson current "$CURRENT_TIME" \
-            --argjson baseline "$BASELINE_TIME" \
-            --argjson change "$CHANGE_PCT" \
             --arg speedup "$SPEEDUP" \
-            '. += [{
-                "benchmark": $name,
-                "current_time_ms": ($current | tonumber),
-                "baseline_time_ms": ($baseline | tonumber),
-                "change_percent": ($change | tonumber),
-                "speedup": $speedup,
-                "status": "improvement"
-            }]' 2>/dev/null || echo "$IMPROVEMENTS")
+            ". += [{
+                \"benchmark\": \$name,
+                \"current_time_ms\": $CURRENT_TIME_VAL,
+                \"baseline_time_ms\": $BASELINE_TIME_VAL,
+                \"change_percent\": $CHANGE_PCT_VAL,
+                \"speedup\": \$speedup,
+                \"status\": \"improvement\"
+            }]" 2>/dev/null || echo "$IMPROVEMENTS")
     else
-        # No significant change
+        # No significant change - use direct number substitution
         UNCHANGED=$(echo "$UNCHANGED" | jq --arg name "$bench_name" \
-            --argjson current "$CURRENT_TIME" \
-            --argjson baseline "$BASELINE_TIME" \
-            --argjson change "$CHANGE_PCT" \
-            '. += [{
-                "benchmark": $name,
-                "current_time_ms": ($current | tonumber),
-                "baseline_time_ms": ($baseline | tonumber),
-                "change_percent": ($change | tonumber),
-                "status": "unchanged"
-            }]' 2>/dev/null || echo "$UNCHANGED")
+            ". += [{
+                \"benchmark\": \$name,
+                \"current_time_ms\": $CURRENT_TIME_VAL,
+                \"baseline_time_ms\": $BASELINE_TIME_VAL,
+                \"change_percent\": $CHANGE_PCT_VAL,
+                \"status\": \"unchanged\"
+            }]" 2>/dev/null || echo "$UNCHANGED")
     fi
 done
 

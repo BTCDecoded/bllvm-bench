@@ -31,6 +31,26 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Install system dependencies
+        run: |
+          # Install OpenSSL and pkg-config (required for Rust OpenSSL bindings)
+          # Also install ccache (Rust OpenSSL bindings try to use it)
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libssl-dev pkg-config ccache
+          elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y openssl-devel pkgconfig ccache
+          elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y openssl-devel pkgconfig ccache
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm openssl pkgconf ccache
+          elif command -v apk >/dev/null 2>&1; then
+            sudo apk add openssl-dev pkgconfig ccache
+          else
+            echo "⚠️  Unknown package manager, skipping system dependency installation"
+            echo "   You may need to install libssl-dev, pkg-config, and ccache manually"
+          fi
+
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -197,34 +217,120 @@ jobs:
           
           cd "$CORE_PATH"
           
+          # Handle ccache properly - CMake needs the real compiler, not ccache
+          # If CC/CXX are set to ccache, we need to find the real compiler
+          REAL_CXX=""
+          REAL_CC=""
+          
+          # Check if CC/CXX point to ccache
+          if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+            echo "⚠️  CC is set to ccache, finding real compiler..."
+            # Find real C compiler
+            if command -v gcc >/dev/null 2>&1; then
+              REAL_CC=$(command -v gcc)
+            elif command -v clang >/dev/null 2>&1; then
+              REAL_CC=$(command -v clang)
+            fi
+          fi
+          
+          if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+            echo "⚠️  CXX is set to ccache, finding real compiler..."
+            # Find real C++ compiler
+            if command -v g++ >/dev/null 2>&1; then
+              REAL_CXX=$(command -v g++)
+            elif command -v clang++ >/dev/null 2>&1; then
+              REAL_CXX=$(command -v clang++)
+            fi
+          fi
+          
+          # If we found real compilers, use them with ccache as launcher
+          if [ -n "$REAL_CXX" ] || [ -n "$REAL_CC" ]; then
+            echo "Using real compilers with ccache launcher:"
+            if [ -n "$REAL_CC" ]; then
+              echo "  C compiler: $REAL_CC"
+            fi
+            if [ -n "$REAL_CXX" ]; then
+              echo "  C++ compiler: $REAL_CXX"
+            fi
+          else
+            # Let CMake find compilers, but unset CC/CXX if they point to ccache
+            if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+              echo "Unsetting CC (was ccache)"
+              unset CC
+            fi
+            if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+              echo "Unsetting CXX (was ccache)"
+              unset CXX
+            fi
+          fi
+          
           # Build with CMake (modern Core)
           echo "Configuring with CMake..."
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCH=ON -DENABLE_WALLET=OFF -DBUILD_GUI=OFF || {
-            echo "⚠️  CMake configure failed, trying autotools..."
-            ./autogen.sh || echo "⚠️  autogen.sh failed"
-            ./configure --enable-bench --disable-wallet --disable-gui || {
-              echo "❌ Configure failed"
+          CMAKE_ARGS=(
+            -B build
+            -DCMAKE_BUILD_TYPE=Release
+            -DBUILD_BENCH=ON
+            -DENABLE_WALLET=OFF
+            -DBUILD_GUI=OFF
+          )
+          
+          # Add compiler settings if we found real compilers
+          if [ -n "$REAL_CXX" ]; then
+            CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER="$REAL_CXX")
+            if command -v ccache >/dev/null 2>&1; then
+              CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER_LAUNCHER="ccache")
+            fi
+          fi
+          if [ -n "$REAL_CC" ]; then
+            CMAKE_ARGS+=(-DCMAKE_C_COMPILER="$REAL_CC")
+            if command -v ccache >/dev/null 2>&1; then
+              CMAKE_ARGS+=(-DCMAKE_C_COMPILER_LAUNCHER="ccache")
+            fi
+          fi
+          
+          if ! cmake "${CMAKE_ARGS[@]}" 2>&1 | tee /tmp/cmake-configure.log; then
+            echo "⚠️  CMake configure failed, checking log..."
+            cat /tmp/cmake-configure.log | tail -20
+            echo ""
+            echo "Trying autotools fallback..."
+            
+            # Try autotools if CMake fails
+            if [ -f "autogen.sh" ]; then
+              ./autogen.sh || echo "⚠️  autogen.sh failed"
+              ./configure --enable-bench --disable-wallet --disable-gui || {
+                echo "❌ Configure failed"
+                exit 1
+              }
+              make -j$(nproc) bench_bitcoin || {
+                echo "❌ Build failed"
+                exit 1
+              }
+              exit 0
+            else
+              echo "❌ No autogen.sh found, CMake is required"
               exit 1
-            }
-            make -j$(nproc) bench_bitcoin || {
-              echo "❌ Build failed"
-              exit 1
-            }
-            exit 0
-          }
+            fi
+          fi
           
           echo "Building bench_bitcoin..."
-          cmake --build build -t bench_bitcoin -j$(nproc) || {
+          if ! cmake --build build -t bench_bitcoin -j$(nproc) 2>&1 | tee /tmp/cmake-build.log; then
             echo "❌ Failed to build bench_bitcoin"
+            echo "Build log (last 30 lines):"
+            tail -30 /tmp/cmake-build.log
             exit 1
-          }
+          fi
           
           # Verify bench_bitcoin exists
           if [ -f "build/bin/bench_bitcoin" ]; then
             echo "✅ bench_bitcoin built successfully at build/bin/bench_bitcoin"
+          elif [ -f "src/bench_bitcoin" ]; then
+            echo "✅ bench_bitcoin found at src/bench_bitcoin (autotools build)"
           else
             echo "❌ bench_bitcoin not found after build"
+            echo "Checking build/bin/:"
             ls -la build/bin/ 2>/dev/null || echo "build/bin/ does not exist"
+            echo "Checking src/:"
+            ls -la src/bench_bitcoin 2>/dev/null || echo "src/bench_bitcoin does not exist"
             exit 1
           fi
 
@@ -293,12 +399,22 @@ jobs:
           CORE_PATH: ${{ steps.setup.outputs.core_path }}
           COMMONS_CONSENSUS_PATH: ${{ steps.setup.outputs.commons_consensus_path }}
           COMMONS_NODE_PATH: ${{ steps.setup.outputs.commons_node_path }}
+          # Help Rust find OpenSSL
+          PKG_CONFIG_PATH: /usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig
+          OPENSSL_DIR: /usr
         run: |
+          # Verify pkg-config can find OpenSSL
+          echo "Checking OpenSSL installation..."
+          pkg-config --modversion openssl || echo "⚠️  pkg-config can't find OpenSSL"
+          pkg-config --cflags openssl || echo "⚠️  pkg-config can't get OpenSSL flags"
+          
           # Explicitly export paths BEFORE running any scripts
           export CORE_PATH="$CORE_PATH"
           export COMMONS_CONSENSUS_PATH="$COMMONS_CONSENSUS_PATH"
           export COMMONS_NODE_PATH="$COMMONS_NODE_PATH"
           export BLLVM_BENCH_CONFIG="$(pwd)/config/config.toml"
+          export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig}"
+          export OPENSSL_DIR="${OPENSSL_DIR:-/usr}"
           
           echo "Running benchmarks with paths:"
           echo "  CORE_PATH: $CORE_PATH"

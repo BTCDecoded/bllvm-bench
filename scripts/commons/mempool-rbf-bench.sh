@@ -40,7 +40,7 @@ if cargo bench --bench mempool_operations --features production 2>&1 | tee "$LOG
         TIME_NS=$(jq -r '.mean.point_estimate' "$bench_dir/base/estimates.json" 2>/dev/null || echo "")
         if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
             TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "replacement_checks_mempool" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "replacement_checks_mempool" --arg name "$name" ". += [{"name": $name, "time_ms": $TIME_MS, "time_ns": $TIME_NS}]" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi
     

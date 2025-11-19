@@ -55,18 +55,16 @@ for bench_name in "sha256_1kb" "double_sha256_1kb" "sha_ni_32b" "sha_ni_64b" "sh
             # Calculate hashes per second
             HASHES_PER_SEC=$(awk "BEGIN {if ($TIME_NS > 0) {result = 1000000000 / $TIME_NS; printf \"%.2f\", result} else printf \"0\"}" 2>/dev/null || echo "0")
             
+            # Use direct number substitution (no --argjson needed)
             BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$bench_name" \
-                --argjson time_ms "$TIME_MS" \
-                --argjson time_ns "$TIME_NS_INT" \
-                --argjson hashes_per_sec "$HASHES_PER_SEC" \
-                --argjson stats "$STATS" \
-                '. += [{
-                    "name": $name,
-                    "time_ms": $time_ms,
-                    "time_ns": $time_ns,
-                    "hashes_per_second": ($hashes_per_sec | tonumber),
-                    "statistics": $stats
-                }]' 2>/dev/null || echo "$BENCHMARKS")
+                --slurpfile stats "$STATS" \
+                ". += [{
+                    \"name\": \$name,
+                    \"time_ms\": $TIME_MS,
+                    \"time_ns\": $TIME_NS_INT,
+                    \"hashes_per_second\": $HASHES_PER_SEC,
+                    \"statistics\": \$stats[0]
+                }]" 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi
 done

@@ -42,9 +42,10 @@ if cargo bench --bench mempool_operations --features production 2>&1 | tee "$LOG
         if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
             TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
             # Output both names for compatibility
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "accept_to_memory_pool_complex" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            # Use direct number substitution (no --argjson needed)
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "accept_to_memory_pool_complex" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
             # Also add alias for report generator
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "accept_to_memory_pool_400tx" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "accept_to_memory_pool_400tx" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi
     

@@ -39,15 +39,39 @@ echo ""
 LOG_FILE="/tmp/commons-tx-validation.log"
 BENCH_SUCCESS=false
 
-# Try all possible benchmark names
-for bench_name in "check_block" "transaction_validation" "checkblock"; do
+# Try all possible benchmark names (matching Cargo.toml)
+for bench_name in "check_block" "transaction_validation"; do
     echo "Trying benchmark: $bench_name"
-    if cargo bench --bench "$bench_name" --features production 2>&1 | tee "$LOG_FILE"; then
-        BENCH_SUCCESS=true
-        echo "✅ $bench_name benchmark completed"
-        break
+    # Try without --features production first
+    if cargo bench --bench "$bench_name" 2>&1 | tee "$LOG_FILE"; then
+        # Verify compilation actually succeeded (check for "error:" or "warning: build failed")
+        if grep -q "error:" "$LOG_FILE" || grep -q "warning: build failed" "$LOG_FILE"; then
+            echo "⚠️  $bench_name compilation failed, trying with --features production..."
+            # Try with production features as fallback
+            if cargo bench --bench "$bench_name" --features production 2>&1 | tee -a "$LOG_FILE"; then
+                # Check again for compilation errors
+                if ! grep -q "error:" "$LOG_FILE" && ! grep -q "warning: build failed" "$LOG_FILE"; then
+                    BENCH_SUCCESS=true
+                    echo "✅ $bench_name benchmark completed (with production features)"
+                    break
+                fi
+            fi
+        else
+            BENCH_SUCCESS=true
+            echo "✅ $bench_name benchmark completed"
+            break
+        fi
     else
-        echo "⚠️  $bench_name failed, trying next..."
+        echo "⚠️  $bench_name failed, trying with --features production..."
+        # Try with production features as fallback
+        if cargo bench --bench "$bench_name" --features production 2>&1 | tee -a "$LOG_FILE"; then
+            # Check for compilation errors
+            if ! grep -q "error:" "$LOG_FILE" && ! grep -q "warning: build failed" "$LOG_FILE"; then
+                BENCH_SUCCESS=true
+                echo "✅ $bench_name benchmark completed (with production features)"
+                break
+            fi
+        fi
     fi
 done
 
@@ -60,10 +84,15 @@ fi
 CRITERION_DIR="$BENCH_DIR/target/criterion"
 BENCHMARKS="[]"
 
-# Verify Criterion output exists
-if [ "$BENCH_SUCCESS" = "true" ] && [ ! -d "$CRITERION_DIR" ]; then
-    echo "⚠️  WARNING: Criterion directory does not exist: $CRITERION_DIR"
-    BENCH_SUCCESS=false
+# Verify Criterion output exists and has actual data
+if [ "$BENCH_SUCCESS" = "true" ]; then
+    if [ ! -d "$CRITERION_DIR" ]; then
+        echo "⚠️  WARNING: Criterion directory does not exist: $CRITERION_DIR"
+        BENCH_SUCCESS=false
+    elif ! find "$CRITERION_DIR" -name "estimates.json" -type f | grep -q .; then
+        echo "⚠️  WARNING: Criterion directory exists but no estimates.json files found"
+        BENCH_SUCCESS=false
+    fi
 fi
 
 if [ "$BENCH_SUCCESS" = "false" ]; then
@@ -93,15 +122,14 @@ for bench_dir in "$CRITERION_DIR"/check_block*; do
             # Extract statistical data
             STATS=$("$BLLVM_BENCH_ROOT/scripts/shared/extract-criterion-stats.sh" "$bench_dir/base/estimates.json")
             
+            # Use direct number substitution (no --argjson needed)
             BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$BENCH_NAME" \
-                --argjson time_ms "$TIME_MS" \
-                --argjson time_ns "$TIME_NS_INT" \
-                --argjson stats "$STATS" \
-                '. += [{
-                    "name": $name,
-                    "time_ms": $time_ms,
-                    "time_ns": $time_ns,
-                    "statistics": $stats
+                --slurpfile stats "$STATS" \
+                ". += [{
+                    \"name\": \$name,
+                    \"time_ms\": $TIME_MS,
+                    \"time_ns\": $TIME_NS_INT,
+                    "statistics": $stats[0]
                 }]' 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi

@@ -32,7 +32,7 @@ for bench_name in "verify_script" "eval_script_complex"; do
         TIME_NS=$(jq -r '.mean.point_estimate // 0' "$bench_dir/base/estimates.json" 2>/dev/null || echo "0")
         if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
             TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$bench_name" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$bench_name" --arg name "$name" ". += [{"name": $name, "time_ms": $TIME_MS, "time_ns": $TIME_NS}]" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi
 done
@@ -77,7 +77,7 @@ while IFS= read -r line; do
                 TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
                 # Extract just the function name (e.g., "verify_script" from "script_verification/verify_script")
                 CLEAN_NAME=$(echo "$CURRENT_BENCH" | sed 's/.*\///' | sed 's/:$//')
-                BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$CLEAN_NAME" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+                BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$CLEAN_NAME" --arg name "$name" ". += [{"name": $name, "time_ms": $TIME_MS, "time_ns": $TIME_NS}]" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
             fi
             CURRENT_BENCH=""
         fi

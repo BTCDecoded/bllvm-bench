@@ -27,17 +27,20 @@ done
 
 echo ""
 
-# Discover paths
-eval "$(./scripts/discover-paths.sh)"
+# Discover paths (source common.sh which includes discover-paths.sh)
+# common.sh is already sourced, so paths should be available
 
 # Check Bitcoin Core
-if [ -n "$CORE_PATH" ] && [ -f "$CORE_PATH/src/bench/bench_bitcoin" ]; then
-    echo "✅ Bitcoin Core: $CORE_PATH"
-    echo "   bench_bitcoin: Found"
-elif [ -n "$CORE_PATH" ]; then
-    echo "⚠️  Bitcoin Core: $CORE_PATH"
-    echo "   bench_bitcoin: Not built (run: cd $CORE_PATH && make bench_bitcoin)"
-    ERRORS=$((ERRORS + 1))
+if [ -n "$CORE_PATH" ]; then
+    BENCH_BITCOIN=$(get_bench_bitcoin)
+    if [ -n "$BENCH_BITCOIN" ] && [ -f "$BENCH_BITCOIN" ]; then
+        echo "✅ Bitcoin Core: $CORE_PATH"
+        echo "   bench_bitcoin: Found at $BENCH_BITCOIN"
+    else
+        echo "⚠️  Bitcoin Core: $CORE_PATH"
+        echo "   bench_bitcoin: Not built (run: cd $CORE_PATH && make bench_bitcoin)"
+        ERRORS=$((ERRORS + 1))
+    fi
 else
     echo "❌ Bitcoin Core: Not found"
     ERRORS=$((ERRORS + 1))

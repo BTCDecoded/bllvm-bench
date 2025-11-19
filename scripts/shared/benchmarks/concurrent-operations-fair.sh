@@ -7,6 +7,21 @@ source "$SCRIPT_DIR/../../shared/common.sh"
 
 set -e
 
+# Track Commons RPC server PID for cleanup
+COMMONS_RPC_PID=""
+
+# Cleanup function
+cleanup() {
+    if [ -n "$COMMONS_RPC_PID" ]; then
+        echo "Cleaning up Commons RPC server (PID: $COMMONS_RPC_PID)..."
+        kill "$COMMONS_RPC_PID" 2>/dev/null || true
+        wait "$COMMONS_RPC_PID" 2>/dev/null || true
+    fi
+}
+
+# Register cleanup on exit
+trap cleanup EXIT
+
 OUTPUT_DIR="${1:-$(dirname "$0")/../results}"
 mkdir -p "$OUTPUT_DIR"
 
@@ -185,12 +200,67 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 COMMONS_URL="http://127.0.0.1:$COMMONS_RPC_PORT"
 
-# Check if Commons RPC is available
+# Check if Commons RPC is available, and try to start if not
+COMMONS_RPC_AVAILABLE=false
 if curl -s --connect-timeout 1 -X POST \
     -H "Content-Type: application/json" \
     -d '{"jsonrpc":"2.0","method":"ping","params":[],"id":1}' \
     "$COMMONS_URL" > /dev/null 2>&1; then
+    COMMONS_RPC_AVAILABLE=true
     echo "✅ Bitcoin Commons RPC is available"
+else
+    echo "⚠️  Bitcoin Commons RPC not available, attempting to start..."
+    
+    # Try to start Commons RPC server
+    if [ -n "$COMMONS_NODE_PATH" ] && [ -d "$COMMONS_NODE_PATH" ]; then
+        echo "  COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
+        cd "$COMMONS_NODE_PATH"
+        
+        # Check if rpc_server_bench example exists
+        if [ -f "examples/rpc_server_bench.rs" ]; then
+            echo "  Found rpc_server_bench.rs, starting server..."
+            # Run RPC server in background
+            RUSTFLAGS="-C target-cpu=native" cargo run --example rpc_server_bench --features production -- --port "$COMMONS_RPC_PORT" > /tmp/commons-rpc-server.log 2>&1 &
+            COMMONS_RPC_PID=$!
+            echo "  Commons RPC server started (PID: $COMMONS_RPC_PID)"
+            
+            # Wait for server to be ready (up to 30 seconds)
+            for i in {1..30}; do
+                if curl -s --connect-timeout 1 -X POST \
+                    -H "Content-Type: application/json" \
+                    -d '{"jsonrpc":"2.0","method":"ping","params":[],"id":1}' \
+                    "$COMMONS_URL" > /dev/null 2>&1; then
+                    echo "✅ Bitcoin Commons RPC is now available"
+                    COMMONS_RPC_AVAILABLE=true
+                    break
+                fi
+                if [ $((i % 5)) -eq 0 ]; then
+                    echo "  Waiting for server... ($i/30)"
+                fi
+                sleep 1
+            done
+            
+            # Check if server is ready
+            if [ "$COMMONS_RPC_AVAILABLE" = "false" ]; then
+                echo "⚠️  Commons RPC server failed to start or is not responding"
+                echo "  Check log: /tmp/commons-rpc-server.log"
+                if [ -n "$COMMONS_RPC_PID" ]; then
+                    kill "$COMMONS_RPC_PID" 2>/dev/null || true
+                fi
+            fi
+        else
+            echo "⚠️  Commons RPC server example not found at examples/rpc_server_bench.rs"
+            echo "  COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
+            ls -la examples/ 2>/dev/null | head -5 || echo "  examples/ directory not found"
+        fi
+    else
+        echo "⚠️  COMMONS_NODE_PATH not set or invalid"
+        echo "  COMMONS_NODE_PATH: ${COMMONS_NODE_PATH:-not set}"
+    fi
+fi
+
+# Run tests if RPC is available
+if [ "$COMMONS_RPC_AVAILABLE" = "true" ]; then
     
     # Use variables instead of associative arrays
     COMMONS_10_AVG=0; COMMONS_10_P50=0; COMMONS_10_P95=0; COMMONS_10_P99=0; COMMONS_10_MIN=0; COMMONS_10_MAX=0

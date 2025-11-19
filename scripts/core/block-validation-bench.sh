@@ -6,7 +6,27 @@ set -e
 
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../shared/common.sh"
+
+# Set OUTPUT_FILE early so we can write error JSON even if sourcing fails
+RESULTS_DIR_FALLBACK="${RESULTS_DIR:-$(pwd)/results}"
+OUTPUT_DIR_FALLBACK="$RESULTS_DIR_FALLBACK"
+mkdir -p "$OUTPUT_DIR_FALLBACK" 2>/dev/null || true
+OUTPUT_FILE="$OUTPUT_DIR_FALLBACK/block-validation-bench-$(date +%Y%m%d-%H%M%S).json"
+
+# Set trap to ensure JSON is always written, even on unexpected exit
+trap 'if [ -n "$OUTPUT_FILE" ] && [ ! -f "$OUTPUT_FILE" ]; then echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"error\":\"Script exited unexpectedly before writing JSON\",\"script\":\"$0\"}" > "$OUTPUT_FILE" 2>/dev/null || true; fi' EXIT ERR
+
+source "$SCRIPT_DIR/../shared/common.sh" || {
+    echo "❌ Failed to source common.sh" >&2
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "Failed to source common.sh",
+  "script": "$0"
+}
+EOF
+    exit 0
+}
 
 OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
 OUTPUT_FILE="$OUTPUT_DIR/core-block-validation-bench-$(date +%Y%m%d-%H%M%S).json"
@@ -48,7 +68,8 @@ if [ -z "$BENCH_BITCOIN" ] || [ ! -f "$BENCH_BITCOIN" ]; then
   "note": "Please build Core with: make bench_bitcoin"
 }
 EOF
-        exit 1
+        echo "✅ Error JSON written to: $OUTPUT_FILE"
+        exit 0
     fi
 fi
 

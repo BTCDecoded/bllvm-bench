@@ -5,7 +5,36 @@ set -e
 
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../shared/common.sh"
+
+# Set OUTPUT_FILE early so we can write error JSON even if sourcing fails
+RESULTS_DIR_FALLBACK="${RESULTS_DIR:-$(pwd)/results}"
+OUTPUT_DIR_FALLBACK="$RESULTS_DIR_FALLBACK"
+mkdir -p "$OUTPUT_DIR_FALLBACK" 2>/dev/null || true
+OUTPUT_FILE="$OUTPUT_DIR_FALLBACK/duplicate-inputs-bench-$(date +%Y%m%d-%H%M%S).json"
+
+# Set trap to ensure JSON is always written, even on unexpected exit
+trap 'if [ -n "$OUTPUT_FILE" ] && [ ! -f "$OUTPUT_FILE" ]; then echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"error\":\"Script exited unexpectedly before writing JSON\",\"script\":\"$0\"}" > "$OUTPUT_FILE" 2>/dev/null || true; fi' EXIT ERR
+
+source "$SCRIPT_DIR/../shared/common.sh" || {
+    echo "❌ Failed to source common.sh" >&2
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "Failed to source common.sh",
+  "script": "$0"
+}
+EOF
+    exit 0
+}
+
+# Verify get_bench_bitcoin function is available
+if ! type get_bench_bitcoin >/dev/null 2>&1; then
+if ! type get_bench_bitcoin >/dev/null 2>&1; then
+    echo "❌ get_bench_bitcoin function not found after sourcing common.sh"
+    exit 0
+fi
+
+OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
 
 # Bitcoin Core Duplicate Input Detection Benchmark
 # Measures duplicate input detection performance
@@ -15,6 +44,20 @@ OUTPUT_FILE="$OUTPUT_DIR/core-duplicate-inputs-bench-$(date +%Y%m%d-%H%M%S).json
 
 # Reliably find or build bench_bitcoin
 BENCH_BITCOIN=$(get_bench_bitcoin)
+
+if [ -z "$BENCH_BITCOIN" ] || [ ! -f "$BENCH_BITCOIN" ]; then
+    echo "❌ bench_bitcoin not found or not executable"
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "bench_bitcoin not found",
+  "core_path": "${CORE_PATH:-not_set}",
+  "note": "Please build Core with: cd $CORE_PATH && cmake -B build -DBUILD_BENCH=ON && cmake --build build -t bench_bitcoin"
+}
+EOF
+    echo "✅ Error JSON written to: $OUTPUT_FILE"
+    exit 0
+fi
 
 echo "Running duplicate inputs benchmark..."
 TEMP_JSON=$(mktemp)
@@ -48,7 +91,7 @@ else
   "error": "Benchmark execution failed"
 }
 EOF
-    exit 1
+    exit 0
 fi
 
 echo "✅ Results saved to: $OUTPUT_FILE"

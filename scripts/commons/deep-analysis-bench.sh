@@ -105,40 +105,30 @@ if [ "$USE_PERF" = "true" ]; then
             LLC_LOADS_NUM=$(echo "$LLC_LOADS" | sed 's/[^0-9.]//g' | head -1 || echo "0")
             LLC_MISS_NUM=$(echo "$LLC_MISS" | sed 's/[^0-9.]//g' | head -1 || echo "0")
             
+            # Use direct number substitution (no --argjson needed)
             BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$bench_name" \
-                --argjson cycles "$CYCLES_NUM" \
-                --argjson instructions "$INSTRUCTIONS_NUM" \
-                --argjson ipc "$IPC" \
-                --argjson cache_ref "$CACHE_REF_NUM" \
-                --argjson cache_miss "$CACHE_MISS_NUM" \
-                --argjson cache_miss_rate "$CACHE_MISS_RATE" \
-                --argjson branch_inst "$BRANCH_INST_NUM" \
-                --argjson branch_miss "$BRANCH_MISS_NUM" \
-                --argjson branch_miss_rate "$BRANCH_MISS_RATE" \
-                --argjson llc_loads "$LLC_LOADS_NUM" \
-                --argjson llc_miss "$LLC_MISS_NUM" \
-                '. += [{
-                    "name": $name,
-                    "cpu_metrics": {
-                        "cycles": ($cycles | tonumber),
-                        "instructions": ($instructions | tonumber),
+                ". += [{
+                    \"name\": \$name,
+                    \"cpu_metrics\": {
+                        \"cycles\": $CYCLES_NUM,
+                        \"instructions\": $INSTRUCTIONS_NUM,
                         "ipc": ($ipc | tonumber),
                         "cache": {
                             "references": ($cache_ref | tonumber),
                             "misses": ($cache_miss | tonumber),
                             "miss_rate_percent": ($cache_miss_rate | tonumber)
                         },
-                        "branch": {
-                            "instructions": ($branch_inst | tonumber),
-                            "misses": ($branch_miss | tonumber),
-                            "miss_rate_percent": ($branch_miss_rate | tonumber)
+                        \"branch\": {
+                            \"instructions\": $BRANCH_INST_NUM,
+                            \"misses\": $BRANCH_MISS_NUM,
+                            \"miss_rate_percent\": $BRANCH_MISS_RATE
                         },
-                        "llc": {
-                            "loads": ($llc_loads | tonumber),
-                            "misses": ($llc_miss | tonumber)
+                        \"llc\": {
+                            \"loads\": $LLC_LOADS_NUM,
+                            \"misses\": $LLC_MISS_NUM
                         }
                     }
-                }]' 2>/dev/null || echo "$BENCHMARKS")
+                }]" 2>/dev/null || echo "$BENCHMARKS")
         fi
     done
 else
@@ -158,10 +148,10 @@ for bench_dir in "$CRITERION_DIR"/*; do
             TIME_NS=$(jq -r '.mean.point_estimate' "$bench_dir/base/estimates.json" 2>/dev/null || echo "")
             if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
                 BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$BENCH_NAME" \
-                    --argjson stats "$STATS" \
+                    --slurpfile stats "$STATS" \
                     '. += [{
                         "name": $name,
-                        "statistics": $stats
+                        \"statistics\": \$stats[0][0]
                     }]' 2>/dev/null || echo "$BENCHMARKS")
             fi
         fi

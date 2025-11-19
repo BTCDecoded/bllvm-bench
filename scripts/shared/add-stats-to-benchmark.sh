@@ -16,5 +16,14 @@ fi
 # Extract stats and merge into benchmark JSON
 STATS=$(source "$(dirname "$0")/extract-criterion-stats.sh" "$ESTIMATES_FILE")
 
-echo "$BENCHMARK_JSON" | jq --argjson stats "$STATS" '.statistics = $stats' 2>/dev/null || echo "$BENCHMARK_JSON"
+# Validate STATS is valid JSON before using --slurpfile
+if echo "$STATS" | jq . >/dev/null 2>&1; then
+    # Use temp file with --slurpfile (more reliable than --argjson)
+    TEMP_STATS=$(mktemp)
+    echo "$STATS" > "$TEMP_STATS"
+    echo "$BENCHMARK_JSON" | jq --slurpfile stats "$TEMP_STATS" '.statistics = $stats[0]' 2>/dev/null || echo "$BENCHMARK_JSON"
+    rm -f "$TEMP_STATS"
+else
+    echo "$BENCHMARK_JSON"
+fi
 

@@ -45,9 +45,10 @@ if cargo bench --bench block_validation_realistic --features production 2>&1 | t
         if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "0" ] && [ "$TIME_NS" != "null" ]; then
             TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
             # Add both names: realistic (actual) and 1000tx (for report generator matching)
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "connect_block_realistic_1000tx" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            # Use direct number substitution (no --argjson needed)
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "connect_block_realistic_1000tx" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
             # Also add alias for report generator
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "connect_block_1000tx" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "connect_block_1000tx" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi
     
@@ -87,7 +88,7 @@ if cargo bench --bench block_validation_realistic --features production 2>&1 | t
                         if [ "$TIME_NS" != "0" ] && [ -n "$TIME_NS" ]; then
                             TIME_MS=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
                             CLEAN_NAME=$(echo "$CURRENT_BENCH" | sed 's/:$//')
-                            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$CLEAN_NAME" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+                            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$CLEAN_NAME" --arg name "$name" ". += [{"name": $name, "time_ms": $TIME_MS, "time_ns": $TIME_NS}]" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
                         fi
                         CURRENT_BENCH=""
                     fi

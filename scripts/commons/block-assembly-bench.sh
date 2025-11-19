@@ -3,12 +3,27 @@
 # Measures block assembly performance using Criterion
 set -e
 
+# Source common functions FIRST
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../shared/common.sh" || {
+    echo "❌ Failed to source common.sh" >&2
+    # Define fallback function if sourcing failed
+    get_output_dir() {
+        local output_dir="${1:-$(pwd)/results}"
+        mkdir -p "$output_dir" 2>/dev/null || true
+        echo "$output_dir"
+    }
+}
+
+# Verify get_output_dir is available
+if ! type get_output_dir >/dev/null 2>&1; then
+    echo "❌ get_output_dir function not found after sourcing common.sh" >&2
+    exit 1
+fi
+
 OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
 # OUTPUT_DIR already set by get_output_dir # Ensure absolute path
 mkdir -p "$OUTPUT_DIR"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../shared/common.sh"
 BENCH_DIR="$BLLVM_BENCH_ROOT"
 OUTPUT_FILE="$OUTPUT_DIR/commons-block-assembly-bench-$(date +%Y%m%d-%H%M%S).json"
 
@@ -75,7 +90,8 @@ while IFS= read -r line; do
                 TIME_MS=$(awk "BEGIN {printf \"%.9f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
                 # Extract just the function name (e.g., "assemble_block" from "block_assembly/assemble_block")
                 CLEAN_NAME=$(echo "$CURRENT_BENCH" | sed 's/.*\///' | sed 's/:$//')
-                BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$CLEAN_NAME" --argjson time_ms "$TIME_MS" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+                # Use direct number substitution (no --argjson needed)
+                BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$CLEAN_NAME" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
             fi
             CURRENT_BENCH=""
         fi
@@ -91,7 +107,8 @@ if [ -d "$bench_dir" ] && [ -f "$bench_dir/base/estimates.json" ]; then
     if [ -n "$TIME_NS" ] && [ "$TIME_NS" != "null" ] && [ "$TIME_NS" != "0" ]; then
         TIME_MS=$(awk "BEGIN {printf \"%.9f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
         TIME_US=$(awk "BEGIN {printf \"%.6f\", $TIME_NS / 1000}" 2>/dev/null || echo "0")
-        BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "assemble_block" --argjson time_ms "$TIME_MS" --argjson time_us "$TIME_US" --argjson time_ns "$TIME_NS" '. += [{"name": $name, "time_ms": $time_ms, "time_us": $time_us, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+        # Use direct number substitution (no --argjson needed)
+        BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "assemble_block" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_us\": $TIME_US, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
     fi
 fi
 

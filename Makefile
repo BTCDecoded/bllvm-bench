@@ -47,14 +47,14 @@ bench-fast:
 
 # Generate report (JSON only - HTML is served via GitHub Pages)
 report:
-	@./scripts/generate-consolidated-json.sh
+	./scripts/generate-consolidated-json.sh 2>&1
 	@echo ""
 	@echo "✅ Consolidated JSON generated"
 	@echo "   Upload to GitHub Pages or serve from results/ directory"
 
 # Generate consolidated JSON only
 json:
-	@./scripts/generate-consolidated-json.sh
+	./scripts/generate-consolidated-json.sh 2>&1
 
 # Generate CSV from consolidated JSON
 csv:
