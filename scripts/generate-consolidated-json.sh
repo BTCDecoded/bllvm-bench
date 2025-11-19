@@ -373,6 +373,7 @@ while IFS= read -r json_file; do
 done <<< "$JSON_FILES"
 
 # Note: Summary will be updated AFTER final pass sets COMPARISON_COUNT
+# (Summary update code moved to after final pass - see below)
 
 # Use temp files with JSON numbers for --slurpfile (more reliable than --argjson)
 TEMP_TOTAL=$(mktemp)
