@@ -365,9 +365,8 @@ while IFS= read -r json_file; do
         rm -f "$TEMP_JSON"
         mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE" 2>/dev/null || true
         
-        # If both core and commons exist for same benchmark, it's a comparison
-        if jq -e ".benchmarks[\"$BENCH_KEY\"].core" "$OUTPUT_FILE" >/dev/null 2>&1; then
-            COMPARISON_COUNT=$((COMPARISON_COUNT + 1))
+        # Note: Comparison detection will happen in final pass after all files are processed
+        # This ensures both Core and Commons data are available
             
             # Calculate winner and speed difference with statistical analysis
             # Try multiple paths to extract timing data (different benchmarks have different structures)
@@ -585,6 +584,7 @@ done <<< "$JSON_FILES"
 TOTAL_COUNT=${BENCH_COUNT:-0}
 CORE_COUNT_VAL=${CORE_COUNT:-0}
 COMMONS_COUNT_VAL=${COMMONS_COUNT:-0}
+# Use the comparison count from final pass
 COMPARISONS_VAL=${COMPARISON_COUNT:-0}
 
 # Use temp files with JSON numbers for --slurpfile (more reliable than --argjson)
@@ -631,6 +631,199 @@ jq ".summary.total_benchmarks = $(cat "$TEMP_TOTAL" 2>/dev/null || echo "0") |
 }
 
 rm -f "$TEMP_TOTAL" "$TEMP_CORE" "$TEMP_COMMONS" "$TEMP_COMPARISONS"
+
+# Final pass: Detect and process all comparisons now that all data is loaded
+echo "" >&2
+echo "Detecting comparisons..." >&2
+COMPARISON_COUNT=0
+
+# Get all benchmark keys that have both core and commons data
+COMPARISON_KEYS=$(jq -r '.benchmarks | to_entries[] | select(.value.core != null and .value.commons != null) | .key' "$OUTPUT_FILE" 2>/dev/null || echo "")
+
+if [ -n "$COMPARISON_KEYS" ]; then
+    while IFS= read -r BENCH_KEY; do
+        if [ -z "$BENCH_KEY" ]; then
+            continue
+        fi
+        
+        # Check if both have actual data (not just null or empty objects)
+        HAS_CORE=$(jq -e '.benchmarks["'"$BENCH_KEY"'"].core | type == "object" and (keys | length > 0)' "$OUTPUT_FILE" 2>/dev/null || echo "false")
+        HAS_COMMONS=$(jq -e '.benchmarks["'"$BENCH_KEY"'"].commons | type == "object" and (keys | length > 0)' "$OUTPUT_FILE" 2>/dev/null || echo "false")
+        
+        if [ "$HAS_CORE" = "true" ] && [ "$HAS_COMMONS" = "true" ]; then
+            COMPARISON_COUNT=$((COMPARISON_COUNT + 1))
+            echo "  Found comparison: $BENCH_KEY" >&2
+            
+            # Calculate winner and speed difference with statistical analysis
+            # Try multiple paths to extract timing data (different benchmarks have different structures)
+            # Comprehensive extraction for Core - try all possible paths
+            CORE_TIME=$(jq -r '
+                .benchmarks["'"$BENCH_KEY"'"].core.bitcoin_core_block_validation.primary_comparison.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.bitcoin_core_block_validation.connect_block_mixed_ecdsa_schnorr.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_ns // 
+                (.benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_ns / 1000000) //
+                .benchmarks["'"$BENCH_KEY"'"].core.time_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.time_ns //
+                (.benchmarks["'"$BENCH_KEY"'"].core.time_ns / 1000000) //
+                empty
+            ' "$OUTPUT_FILE" 2>/dev/null || echo "")
+            
+            # Comprehensive extraction for Commons - try all possible paths
+            COMMONS_TIME=$(jq -r '
+                .benchmarks["'"$BENCH_KEY"'"].commons.bitcoin_commons_block_validation.connect_block.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_ns //
+                (.benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_ns / 1000000) //
+                .benchmarks["'"$BENCH_KEY"'"].commons.time_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.time_ns //
+                (.benchmarks["'"$BENCH_KEY"'"].commons.time_ns / 1000000) //
+                empty
+            ' "$OUTPUT_FILE" 2>/dev/null || echo "")
+            
+            # Extract comprehensive statistical data
+            # Try to extract from Criterion estimates.json for Commons
+            COMMONS_STATS="null"
+            if [ -f "$LATEST_SUITE/commons-$BENCH_KEY-bench" ] || [ -d "$BLLVM_BENCH_ROOT/target/criterion" ]; then
+                # Try to find Criterion estimates.json
+                CRITERION_DIR="$BLLVM_BENCH_ROOT/target/criterion"
+                for bench_dir in "$CRITERION_DIR"/*; do
+                    if [ -d "$bench_dir" ] && [ -f "$bench_dir/base/estimates.json" ]; then
+                        COMMONS_STATS=$("$SCRIPT_DIR/shared/extract-criterion-stats.sh" "$bench_dir/base/estimates.json" 2>/dev/null || echo "null")
+                        break
+                    fi
+                done
+            fi
+            
+            # Extract from existing JSON if not found
+            if [ "$COMMONS_STATS" = "null" ]; then
+                COMMONS_STATS=$(jq -c '.benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].statistics // .benchmarks["'"$BENCH_KEY"'"].commons.statistics // null' "$OUTPUT_FILE" 2>/dev/null || echo "null")
+            fi
+            
+            # Extract from nanobench for Core (if available)
+            CORE_STATS=$(jq -c '.benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].statistics // .benchmarks["'"$BENCH_KEY"'"].core.statistics // null' "$OUTPUT_FILE" 2>/dev/null || echo "null")
+            
+            # If still no time found, try to extract from any numeric field that looks like timing
+            # Search recursively through the entire structure for time-related fields
+            if [ -z "$CORE_TIME" ] || [ "$CORE_TIME" = "null" ] || [ "$CORE_TIME" = "0" ]; then
+                # Try to find any field with "time" in the name
+                CORE_TIME=$(jq -r '
+                    .benchmarks["'"$BENCH_KEY"'"].core | 
+                    .. | 
+                    select(type == "object") | 
+                    to_entries[] | 
+                    select(.key | test("time"; "i")) | 
+                    select(.value | type == "number" and . > 0) | 
+                    .value
+                ' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                
+                # If still nothing, try any numeric field > 0
+                if [ -z "$CORE_TIME" ] || [ "$CORE_TIME" = "null" ] || [ "$CORE_TIME" = "0" ]; then
+                    CORE_TIME=$(jq -r '.benchmarks["'"$BENCH_KEY"'"].core | .. | select(type == "number" and . > 0 and . < 1000000)' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                fi
+            fi
+            
+            if [ -z "$COMMONS_TIME" ] || [ "$COMMONS_TIME" = "null" ] || [ "$COMMONS_TIME" = "0" ]; then
+                # Try to find any field with "time" in the name
+                COMMONS_TIME=$(jq -r '
+                    .benchmarks["'"$BENCH_KEY"'"].commons | 
+                    .. | 
+                    select(type == "object") | 
+                    to_entries[] | 
+                    select(.key | test("time"; "i")) | 
+                    select(.value | type == "number" and . > 0) | 
+                    .value
+                ' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                
+                # If still nothing, try any numeric field > 0
+                if [ -z "$COMMONS_TIME" ] || [ "$COMMONS_TIME" = "null" ] || [ "$COMMONS_TIME" = "0" ]; then
+                    COMMONS_TIME=$(jq -r '.benchmarks["'"$BENCH_KEY"'"].commons | .. | select(type == "number" and . > 0 and . < 1000000)' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                fi
+            fi
+            
+            if [ -n "$CORE_TIME" ] && [ -n "$COMMONS_TIME" ] && [ "$CORE_TIME" != "0" ] && [ "$CORE_TIME" != "null" ] && [ "$COMMONS_TIME" != "0" ] && [ "$COMMONS_TIME" != "null" ]; then
+                if awk "BEGIN {exit !($CORE_TIME > $COMMONS_TIME)}" 2>/dev/null; then
+                    WINNER="commons"
+                    SPEEDUP=$(awk "BEGIN {printf \"%.2f\", $CORE_TIME / $COMMONS_TIME}" 2>/dev/null || echo "1")
+                else
+                    WINNER="core"
+                    SPEEDUP=$(awk "BEGIN {printf \"%.2f\", $COMMONS_TIME / $CORE_TIME}" 2>/dev/null || echo "1")
+                fi
+                
+                # Build comparison with statistics (same logic as before)
+                TEMP_CORE_STATS=$(mktemp)
+                TEMP_COMMONS_STATS=$(mktemp)
+                echo "${CORE_STATS:-null}" | jq . > "$TEMP_CORE_STATS" 2>/dev/null || echo "null" > "$TEMP_CORE_STATS"
+                echo "${COMMONS_STATS:-null}" | jq . > "$TEMP_COMMONS_STATS" 2>/dev/null || echo "null" > "$TEMP_COMMONS_STATS"
+                
+                SPEEDUP_NUM=$(awk "BEGIN {printf \"%.2f\", ($SPEEDUP + 0)}" 2>/dev/null || echo "1.0")
+                CORE_TIME_NUM=$(awk "BEGIN {printf \"%.2f\", ($CORE_TIME + 0)}" 2>/dev/null || echo "0.0")
+                COMMONS_TIME_NUM=$(awk "BEGIN {printf \"%.2f\", ($COMMONS_TIME + 0)}" 2>/dev/null || echo "0.0")
+                
+                if ! echo "$SPEEDUP_NUM" | grep -qE '^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$'; then
+                    SPEEDUP_NUM="1.0"
+                fi
+                if ! echo "$CORE_TIME_NUM" | grep -qE '^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$'; then
+                    CORE_TIME_NUM="0.0"
+                fi
+                if ! echo "$COMMONS_TIME_NUM" | grep -qE '^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$'; then
+                    COMMONS_TIME_NUM="0.0"
+                fi
+                
+                SPEEDUP_FORMATTED=$(printf "%.2f" "$SPEEDUP_NUM" 2>/dev/null || echo "1.0")
+                CORE_TIME_FORMATTED=$(printf "%.2f" "$CORE_TIME_NUM" 2>/dev/null || echo "0.0")
+                COMMONS_TIME_FORMATTED=$(printf "%.2f" "$COMMONS_TIME_NUM" 2>/dev/null || echo "0.0")
+                
+                TEMP_SPEEDUP=$(mktemp)
+                TEMP_CORE_TIME=$(mktemp)
+                TEMP_COMMONS_TIME=$(mktemp)
+                
+                printf "%.2f" "$SPEEDUP_FORMATTED" > "$TEMP_SPEEDUP" 2>/dev/null || echo "1.0" > "$TEMP_SPEEDUP"
+                printf "%.2f" "$CORE_TIME_FORMATTED" > "$TEMP_CORE_TIME" 2>/dev/null || echo "0.0" > "$TEMP_CORE_TIME"
+                printf "%.2f" "$COMMONS_TIME_FORMATTED" > "$TEMP_COMMONS_TIME" 2>/dev/null || echo "0.0" > "$TEMP_COMMONS_TIME"
+                
+                SPEEDUP_VAL=$(cat "$TEMP_SPEEDUP" 2>/dev/null || echo "1.0")
+                CORE_TIME_VAL=$(cat "$TEMP_CORE_TIME" 2>/dev/null || echo "0.0")
+                COMMONS_TIME_VAL=$(cat "$TEMP_COMMONS_TIME" 2>/dev/null || echo "0.0")
+                
+                COMPARISON_JSON=$(jq -n \
+                    --arg winner "$WINNER" \
+                    --slurpfile core_stats "$TEMP_CORE_STATS" \
+                    --slurpfile commons_stats "$TEMP_COMMONS_STATS" \
+                    "{
+                        winner: \$winner,
+                        speedup: $SPEEDUP_VAL,
+                        core_time_ms: $CORE_TIME_VAL,
+                        commons_time_ms: $COMMONS_TIME_VAL,
+                        core_statistics: \$core_stats[0],
+                        commons_statistics: \$commons_stats[0]
+                    }" 2>/dev/null || jq -n --arg winner "$WINNER" '{
+                        winner: $winner,
+                        speedup: 1.0,
+                        core_time_ms: 0.0,
+                        commons_time_ms: 0.0,
+                        core_statistics: null,
+                        commons_statistics: null
+                    }')
+                
+                rm -f "$TEMP_CORE_STATS" "$TEMP_COMMONS_STATS" "$TEMP_SPEEDUP" "$TEMP_CORE_TIME" "$TEMP_COMMONS_TIME"
+                
+                TEMP_COMP=$(mktemp)
+                echo "$COMPARISON_JSON" > "$TEMP_COMP"
+                if jq . "$TEMP_COMP" >/dev/null 2>&1; then
+                    jq --arg key "$BENCH_KEY" --slurpfile comparison "$TEMP_COMP" \
+                       '.benchmarks[$key].comparison = $comparison[0]' \
+                       "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" && mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+                fi
+                rm -f "$TEMP_COMP"
+            fi
+        fi
+    done <<< "$COMPARISON_KEYS"
+fi
 
 echo "✅ Consolidated JSON generated: $OUTPUT_FILE"
 
