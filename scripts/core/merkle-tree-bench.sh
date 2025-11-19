@@ -83,15 +83,19 @@ if "$BENCH_BITCOIN" -filter="MerkleRoot" -min-time=500 2>&1 | tee "$LOG_FILE"; t
 }
 EOF
 else
+    echo "⚠️  No merkle tree benchmarks found in output"
+    echo "   Checking log file: $LOG_FILE"
+    # Still write JSON so it gets picked up, but mark as error
     cat > "$OUTPUT_FILE" << EOF
 {
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "error": "No merkle tree benchmarks found",
   "log_file": "$LOG_FILE",
-  "note": "bench_bitcoin may not have MerkleRoot benchmark, or filter didn't match"
+  "note": "bench_bitcoin may not have MerkleRoot benchmark, or filter didn't match. Check log_file for details.",
+  "benchmarks": []
 }
 EOF
-    echo "⚠️  No benchmarks found, wrote error JSON"
+    echo "✅ Error JSON written to: $OUTPUT_FILE"
 fi
 
 echo "✅ Results saved to: $OUTPUT_FILE"

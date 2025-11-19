@@ -98,5 +98,16 @@ EOF
 echo "✅ Results saved to: $OUTPUT_FILE"
 if [ "$BENCHMARKS" != "[]" ]; then
     echo "$BENCHMARKS" | jq '.' 2>/dev/null || echo "$BENCHMARKS"
+else
+    echo "⚠️  No benchmarks found, writing error JSON"
+    cat > "$OUTPUT_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "error": "No benchmarks found",
+  "note": "bench_bitcoin filter did not match any benchmarks",
+  "benchmarks": []
+}
+EOF
+    echo "✅ Error JSON written to: $OUTPUT_FILE"
 fi
 
