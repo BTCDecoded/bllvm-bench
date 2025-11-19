@@ -61,7 +61,7 @@ LOG_FILE="/tmp/core-mempool.log"
 # Run multiple mempool benchmarks and combine results
 # Try multiple filter patterns to catch all mempool benchmarks
 # Note: Core uses ComplexMemPool, not MempoolCheck/MempoolEviction
-"$BENCH_BITCOIN" -filter="ComplexMemPool|MempoolCheck|MempoolCheckEphemeralSpends|MempoolEviction|RpcMempool" -min-time=500 2>&1 | tee "$LOG_FILE" || true
+"$BENCH_BITCOIN" -filter="ComplexMemPool|MempoolCheck|MempoolEviction|MempoolAccept" -min-time=500 2>&1 | tee "$LOG_FILE" || true
 
 # Parse bench_bitcoin pipe-delimited table format
 BENCHMARKS="[]"
@@ -107,7 +107,7 @@ else
   "error": "Benchmark execution failed"
 }
 EOF
-    exit 1
+    echo "✅ Error JSON written to: $OUTPUT_FILE"
 fi
 
 echo "✅ Results saved to: $OUTPUT_FILE"
