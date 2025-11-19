@@ -365,18 +365,32 @@ while IFS= read -r json_file; do
             
             # Calculate winner and speed difference with statistical analysis
             # Try multiple paths to extract timing data (different benchmarks have different structures)
+            # Comprehensive extraction for Core - try all possible paths
             CORE_TIME=$(jq -r '
                 .benchmarks["'"$BENCH_KEY"'"].core.bitcoin_core_block_validation.primary_comparison.time_per_block_ms //
                 .benchmarks["'"$BENCH_KEY"'"].core.bitcoin_core_block_validation.connect_block_mixed_ecdsa_schnorr.time_per_block_ms //
                 .benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_ms //
                 .benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_ns // 
+                (.benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].time_ns / 1000000) //
+                .benchmarks["'"$BENCH_KEY"'"].core.time_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].core.time_ns //
+                (.benchmarks["'"$BENCH_KEY"'"].core.time_ns / 1000000) //
                 empty
             ' "$OUTPUT_FILE" 2>/dev/null || echo "")
             
+            # Comprehensive extraction for Commons - try all possible paths
             COMMONS_TIME=$(jq -r '
                 .benchmarks["'"$BENCH_KEY"'"].commons.bitcoin_commons_block_validation.connect_block.time_per_block_ms //
                 .benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_ms //
                 .benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_ns //
+                (.benchmarks["'"$BENCH_KEY"'"].commons.benchmarks[0].time_ns / 1000000) //
+                .benchmarks["'"$BENCH_KEY"'"].commons.time_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.time_per_block_ms //
+                .benchmarks["'"$BENCH_KEY"'"].commons.time_ns //
+                (.benchmarks["'"$BENCH_KEY"'"].commons.time_ns / 1000000) //
                 empty
             ' "$OUTPUT_FILE" 2>/dev/null || echo "")
             
@@ -403,12 +417,41 @@ while IFS= read -r json_file; do
             CORE_STATS=$(jq -c '.benchmarks["'"$BENCH_KEY"'"].core.benchmarks[0].statistics // .benchmarks["'"$BENCH_KEY"'"].core.statistics // null' "$OUTPUT_FILE" 2>/dev/null || echo "null")
             
             # If still no time found, try to extract from any numeric field that looks like timing
+            # Search recursively through the entire structure for time-related fields
             if [ -z "$CORE_TIME" ] || [ "$CORE_TIME" = "null" ] || [ "$CORE_TIME" = "0" ]; then
-                CORE_TIME=$(jq -r '.benchmarks["'"$BENCH_KEY"'"].core | to_entries[] | select(.value | type == "number" and . > 0) | .value' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                # Try to find any field with "time" in the name
+                CORE_TIME=$(jq -r '
+                    .benchmarks["'"$BENCH_KEY"'"].core | 
+                    .. | 
+                    select(type == "object") | 
+                    to_entries[] | 
+                    select(.key | test("time"; "i")) | 
+                    select(.value | type == "number" and . > 0) | 
+                    .value
+                ' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                
+                # If still nothing, try any numeric field > 0
+                if [ -z "$CORE_TIME" ] || [ "$CORE_TIME" = "null" ] || [ "$CORE_TIME" = "0" ]; then
+                    CORE_TIME=$(jq -r '.benchmarks["'"$BENCH_KEY"'"].core | .. | select(type == "number" and . > 0 and . < 1000000)' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                fi
             fi
             
             if [ -z "$COMMONS_TIME" ] || [ "$COMMONS_TIME" = "null" ] || [ "$COMMONS_TIME" = "0" ]; then
-                COMMONS_TIME=$(jq -r '.benchmarks["'"$BENCH_KEY"'"].commons | to_entries[] | select(.value | type == "number" and . > 0) | .value' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                # Try to find any field with "time" in the name
+                COMMONS_TIME=$(jq -r '
+                    .benchmarks["'"$BENCH_KEY"'"].commons | 
+                    .. | 
+                    select(type == "object") | 
+                    to_entries[] | 
+                    select(.key | test("time"; "i")) | 
+                    select(.value | type == "number" and . > 0) | 
+                    .value
+                ' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                
+                # If still nothing, try any numeric field > 0
+                if [ -z "$COMMONS_TIME" ] || [ "$COMMONS_TIME" = "null" ] || [ "$COMMONS_TIME" = "0" ]; then
+                    COMMONS_TIME=$(jq -r '.benchmarks["'"$BENCH_KEY"'"].commons | .. | select(type == "number" and . > 0 and . < 1000000)' "$OUTPUT_FILE" 2>/dev/null | head -1 || echo "")
+                fi
             fi
             
             if [ -n "$CORE_TIME" ] && [ -n "$COMMONS_TIME" ] && [ "$CORE_TIME" != "0" ] && [ "$CORE_TIME" != "null" ] && [ "$COMMONS_TIME" != "0" ] && [ "$COMMONS_TIME" != "null" ]; then
