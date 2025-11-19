@@ -819,8 +819,12 @@
         
         function setFilter(filter) {
             currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent.trim().toLowerCase() === filter.replace('-', ' ')) {
+                    btn.classList.add('active');
+                }
+            });
             filterBenchmarks();
         }
         
@@ -858,7 +862,9 @@
         
         function sortTable(columnIndex) {
             // Implementation for sortable tables
-            const table = event.target.closest('table');
+            const clickedElement = event?.target || window.event?.target;
+            if (!clickedElement) return;
+            const table = clickedElement.closest('table');
             if (!table) return;
             
             const tbody = table.querySelector('tbody');
@@ -872,7 +878,7 @@
             table.querySelectorAll('th.sortable').forEach(th => {
                 th.classList.remove('asc', 'desc');
             });
-            event.target.classList.add(sortDirection);
+            clickedElement.classList.add(sortDirection);
             
             rows.sort((a, b) => {
                 const aVal = a.cells[columnIndex]?.textContent.trim() || '';
