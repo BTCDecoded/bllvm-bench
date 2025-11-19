@@ -61,7 +61,7 @@ echo "Running Core Block Serialization benchmark..."
 echo "Output: $OUTPUT_FILE"
 
 # Run bench_bitcoin for block read/write operations
-BENCH_OUTPUT=$("$BENCH_BITCOIN" -filter="ReadBlock|WriteBlock|DeserializeBlock" 2>&1 || true)
+BENCH_OUTPUT=$("$BENCH_BITCOIN" -filter="BlockToJsonVerboseWrite|DeserializeAndCheckBlockTest|DeserializeBlockTest" 2>&1 || true)
 
 # Parse bench_bitcoin output
 # Format: "ReadBlockBench        , 1234.56, 1234.56, 1234.56, 1234.56, 1234.56"
