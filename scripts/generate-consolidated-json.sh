@@ -296,10 +296,12 @@ while IFS= read -r json_file; do
         fi
         
         # Use jq to safely merge the data (read from temp file to avoid shell escaping)
+        # IMPORTANT: Preserve existing commons data if it exists
         if ! jq --arg key "$BENCH_KEY" --slurpfile data "$TEMP_JSON" \
            '.benchmarks[$key] = (.benchmarks[$key] // {}) | 
             .benchmarks[$key].name = $key |
-            .benchmarks[$key].core = $data[0]' \
+            .benchmarks[$key].core = $data[0] |
+            .benchmarks[$key].commons = (.benchmarks[$key].commons // null)' \
            "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" 2>/dev/null; then
             echo "  ⚠️  Warning: Failed to merge JSON for $BENCH_KEY" >&2
             # Try with empty object
@@ -307,7 +309,8 @@ while IFS= read -r json_file; do
             jq --arg key "$BENCH_KEY" --slurpfile data "$TEMP_JSON" \
                '.benchmarks[$key] = (.benchmarks[$key] // {}) | 
                 .benchmarks[$key].name = $key |
-                .benchmarks[$key].core = $data[0]' \
+                .benchmarks[$key].core = $data[0] |
+                .benchmarks[$key].commons = (.benchmarks[$key].commons // null)' \
                "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" 2>/dev/null || true
         fi
         rm -f "$TEMP_JSON"
@@ -342,10 +345,12 @@ while IFS= read -r json_file; do
         fi
         
         # Use jq to safely merge the data (read from temp file to avoid shell escaping)
+        # IMPORTANT: Preserve existing core data if it exists
         if ! jq --arg key "$BENCH_KEY" --slurpfile data "$TEMP_JSON" \
            '.benchmarks[$key] = (.benchmarks[$key] // {}) | 
             .benchmarks[$key].name = $key |
-            .benchmarks[$key].commons = $data[0]' \
+            .benchmarks[$key].commons = $data[0] |
+            .benchmarks[$key].core = (.benchmarks[$key].core // null)' \
            "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" 2>/dev/null; then
             echo "  ⚠️  Warning: Failed to merge JSON for $BENCH_KEY" >&2
             # Try with empty object
@@ -353,7 +358,8 @@ while IFS= read -r json_file; do
             jq --arg key "$BENCH_KEY" --slurpfile data "$TEMP_JSON" \
                '.benchmarks[$key] = (.benchmarks[$key] // {}) | 
                 .benchmarks[$key].name = $key |
-                .benchmarks[$key].commons = $data[0]' \
+                .benchmarks[$key].commons = $data[0] |
+                .benchmarks[$key].core = (.benchmarks[$key].core // null)' \
                "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" 2>/dev/null || true
         fi
         rm -f "$TEMP_JSON"
