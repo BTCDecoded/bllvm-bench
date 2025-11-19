@@ -3,27 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Bitcoin Commons Benchmarks - Performance comparison between Bitcoin Core and Bitcoin Commons">
     <title>Bitcoin Commons Benchmarks</title>
-    <!-- Updated: Header with Bitcoin Commons branding -->
-    <!-- Deploy trigger: 2024-11-18-2 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        :root {
+            --primary: #f7931a;
+            --primary-dark: #e8841a;
+            --secondary: #4CAF50;
+            --secondary-dark: #45a049;
+            --accent: #2196F3;
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --text: #333;
+            --text-light: #666;
+            --border: #e0e0e0;
+            --shadow: rgba(0,0,0,0.1);
+            --shadow-lg: rgba(0,0,0,0.15);
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: #f5f7fa;
+            color: var(--text);
+            background: var(--bg);
             padding: 0;
         }
+        
         .header {
-            background: linear-gradient(135deg, #f7931a 0%, #ffa64d 100%);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
+            padding: 24px 0;
+            box-shadow: 0 4px 12px var(--shadow-lg);
+            margin-bottom: 32px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
+        
         .header-content {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             padding: 0 40px;
             display: flex;
@@ -32,146 +53,433 @@
             flex-wrap: wrap;
             gap: 20px;
         }
+        
         .logo-link {
             display: flex;
             align-items: center;
             text-decoration: none;
             color: white;
-            transition: opacity 0.2s;
+            transition: transform 0.2s;
         }
+        
         .logo-link:hover {
-            opacity: 0.9;
+            transform: scale(1.05);
         }
+        
         .logo {
-            height: 50px;
+            height: 56px;
             width: auto;
-            margin-right: 15px;
+            margin-right: 16px;
         }
-        .logo-text {
-            font-size: 2em;
-            margin-right: 15px;
-        }
+        
         .header-title {
             flex: 1;
             min-width: 300px;
         }
+        
         .header-title h1 {
             color: white;
             border: none;
             padding: 0;
-            margin: 0 0 5px 0;
-            font-size: 2em;
+            margin: 0 0 8px 0;
+            font-size: 2.2em;
             font-weight: 700;
+            letter-spacing: -0.5px;
         }
+        
         .subtitle {
-            color: rgba(255,255,255,0.9);
-            font-size: 0.95em;
+            color: rgba(255,255,255,0.95);
+            font-size: 1em;
             margin: 0;
         }
+        
         .back-link {
             color: white;
             text-decoration: none;
-            padding: 10px 20px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 6px;
-            transition: background 0.2s;
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            transition: all 0.2s;
             white-space: nowrap;
+            font-weight: 500;
+            border: 1px solid rgba(255,255,255,0.2);
         }
+        
         .back-link:hover {
-            background: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-1px);
         }
+        
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
-            background: white;
-            padding: 40px;
+            padding: 0 40px 40px;
+        }
+        
+        .controls {
+            background: var(--card-bg);
+            padding: 24px;
             border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px var(--shadow);
+            margin-bottom: 24px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
         }
+        
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.2s;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 10px 20px;
+            border: 2px solid var(--border);
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        
+        .filter-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        .filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px var(--shadow);
+            margin-bottom: 32px;
+        }
+        
         h1 {
-            color: #f7931a;
-            border-bottom: 4px solid #f7931a;
-            padding-bottom: 15px;
-            margin-bottom: 30px;
+            color: var(--primary);
+            border-bottom: 4px solid var(--primary);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+            font-size: 2em;
+            font-weight: 700;
         }
-        @media (max-width: 768px) {
-            .header-content {
-                flex-direction: column;
-                text-align: center;
-            }
-            .header-title h1 {
-                font-size: 1.5em;
-            }
-            .back-link {
-                width: 100%;
-            }
-        }
+        
         h2 {
-            color: #333;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            border-left: 4px solid #f7931a;
-            padding-left: 15px;
+            color: var(--text);
+            margin-top: 32px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary);
+            padding-left: 16px;
+            font-size: 1.5em;
+            font-weight: 600;
         }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+        
+        .summary-card.secondary {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
+        }
+        
+        .summary-card.accent {
+            background: linear-gradient(135deg, var(--accent) 0%, #1976D2 100%);
+        }
+        
+        .summary-card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .summary-card .value {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin: 0;
+        }
+        
         .loading {
             text-align: center;
-            padding: 40px;
-            color: #666;
+            padding: 60px;
+            color: var(--text-light);
+            font-size: 1.1em;
         }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
         .error {
             background: #fee;
-            border: 1px solid #fcc;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
+            border: 2px solid #fcc;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 24px 0;
             color: #c33;
         }
+        
         .info-box {
             background: #e7f3ff;
-            border-left: 4px solid #2196F3;
-            padding: 15px;
-            margin: 15px 0;
+            border-left: 5px solid var(--accent);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
         }
+        
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
+            margin: 24px 0;
             background: white;
-            table-layout: fixed; /* Fixed layout for consistent column widths */
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px var(--shadow);
         }
+        
         th, td {
-            padding: 12px 15px;
+            padding: 16px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
-            vertical-align: top;
+            border-bottom: 1px solid var(--border);
         }
+        
         th {
-            background: #f7931a;
+            background: var(--primary);
             color: white;
             font-weight: 600;
             position: sticky;
             top: 0;
+            z-index: 10;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
         }
-        /* Consistent column widths */
-        th:nth-child(1), td:nth-child(1) { width: 25%; } /* Benchmark name */
-        th:nth-child(2), td:nth-child(2) { width: 20%; text-align: right; } /* Core time */
-        th:nth-child(3), td:nth-child(3) { width: 20%; text-align: right; } /* Commons time */
-        th:nth-child(4), td:nth-child(4) { width: 15%; text-align: center; } /* Winner */
-        th:nth-child(5), td:nth-child(5) { width: 20%; text-align: right; } /* Speed difference */
-        tr:hover {
+        
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        
+        th.sortable:hover {
+            background: var(--primary-dark);
+        }
+        
+        th.sortable::after {
+            content: ' ↕';
+            opacity: 0.5;
+            font-size: 0.8em;
+        }
+        
+        th.sortable.asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+        
+        th.sortable.desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+        
+        tbody tr {
+            transition: background 0.2s;
+        }
+        
+        tbody tr:hover {
             background: #f9f9f9;
         }
-        .winner-core { color: #2196F3; font-weight: bold; }
-        .winner-commons { color: #4CAF50; font-weight: bold; }
-        .winner-tie { color: #666; }
-        .speedup {
-            color: #4CAF50;
-            font-weight: bold;
+        
+        tbody tr.hidden {
+            display: none;
         }
-        .stats {
+        
+        .benchmark-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        .time-value {
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-weight: 600;
+        }
+        
+        .winner-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .winner-core {
+            background: rgba(33, 150, 243, 0.1);
+            color: var(--accent);
+        }
+        
+        .winner-commons {
+            background: rgba(76, 175, 80, 0.1);
+            color: var(--secondary);
+        }
+        
+        .speedup {
+            color: var(--secondary);
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+        
+        .speedup::before {
+            content: '×';
+            margin-right: 4px;
+        }
+        
+        .chart-container {
+            margin: 32px 0;
+            padding: 24px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+        
+        .stats-toggle {
+            cursor: pointer;
+            color: var(--primary);
             font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
+            margin-top: 8px;
+            display: inline-block;
+        }
+        
+        .stats-toggle:hover {
+            text-decoration: underline;
+        }
+        
+        .stats-details {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            font-size: 0.9em;
+            display: none;
+        }
+        
+        .stats-details.show {
+            display: block;
+        }
+        
+        .stats-details dl {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 16px;
+        }
+        
+        .stats-details dt {
+            font-weight: 600;
+            color: var(--text-light);
+        }
+        
+        .stats-details dd {
+            margin: 0;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+                padding: 20px;
+            }
+            
+            .header-title h1 {
+                font-size: 1.6em;
+            }
+            
+            .container {
+                padding: 0 20px 20px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
+            
+            table {
+                font-size: 0.9em;
+            }
+            
+            th, td {
+                padding: 12px 8px;
+            }
+            
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-light);
+        }
+        
+        .category-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--bg);
+            border-radius: 12px;
+            font-size: 0.75em;
+            color: var(--text-light);
+            margin-left: 8px;
         }
     </style>
 </head>
@@ -189,26 +497,30 @@
             <a href="https://thebitcoincommons.org" class="back-link">← Back to Bitcoin Commons</a>
         </div>
     </div>
+    
     <div class="container">
-        <h1>Bitcoin Commons Benchmarks</h1>
-        <p>Performance comparison between Bitcoin Core and Bitcoin Commons implementations.</p>
-        <div id="loading" class="loading">Loading benchmark data...</div>
+        <div id="loading" class="loading">Loading benchmark data</div>
         <div id="error" class="error" style="display: none;"></div>
-        <div id="content" style="display: none;"></div>
+        <div id="content" style="display: none;">
+            <!-- Content will be dynamically generated -->
+        </div>
     </div>
 
-        <script>
-            // Configuration
-            // Priority: 1. Latest release (benchmarks-latest tag), 2. Local file (fallback), 3. Main branch
-            const RELEASE_TAG = 'benchmarks-latest';
-            const RELEASE_JSON_URL = `https://api.github.com/repos/BTCDecoded/bllvm-bench/releases/tags/${RELEASE_TAG}`;
-            const LOCAL_JSON_URL = './data/benchmark-results-consolidated-latest.json';
-            const MAIN_JSON_URL = 'https://raw.githubusercontent.com/BTCDecoded/bllvm-bench/main/docs/data/benchmark-results-consolidated-latest.json';
-            
-            // Load data on page load
-            document.addEventListener('DOMContentLoaded', () => {
-                loadBenchmarkData();
-            });
+    <script>
+        // Configuration
+        const RELEASE_TAG = 'benchmarks-latest';
+        const RELEASE_JSON_URL = `https://api.github.com/repos/BTCDecoded/bllvm-bench/releases/tags/${RELEASE_TAG}`;
+        const LOCAL_JSON_URL = './data/benchmark-results-consolidated-latest.json';
+        const MAIN_JSON_URL = 'https://raw.githubusercontent.com/BTCDecoded/bllvm-bench/main/docs/data/benchmark-results-consolidated-latest.json';
+        
+        let allBenchmarks = [];
+        let currentFilter = 'all';
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBenchmarkData();
+        });
 
         async function loadBenchmarkData() {
             const loadingEl = document.getElementById('loading');
@@ -216,49 +528,30 @@
             const contentEl = document.getElementById('content');
 
             try {
-                // Priority 1: Try to get from latest release (benchmarks-latest tag)
-                let response;
                 let jsonData;
                 
+                // Try release first
                 try {
-                    console.log('Loading from release...');
                     const releaseResponse = await fetch(RELEASE_JSON_URL);
                     if (releaseResponse.ok) {
                         const release = await releaseResponse.json();
-                        console.log('Release found:', release.tag_name);
-                        // Find JSON asset in release
                         const jsonAsset = release.assets.find(a => a.name.includes('benchmark-results-consolidated') && a.name.endsWith('.json'));
                         if (jsonAsset) {
-                            console.log('Found JSON asset:', jsonAsset.name);
-                            // Use browser_download_url which works from browser
-                            response = await fetch(jsonAsset.browser_download_url, {
-                                method: 'GET',
-                                headers: {
-                                    'Accept': 'application/json',
-                                },
-                                // CORS should work for GitHub release assets
-                            });
+                            const response = await fetch(jsonAsset.browser_download_url);
                             if (response.ok) {
                                 jsonData = await response.json();
-                                console.log('✅ Loaded from release:', jsonAsset.name);
-                            } else {
-                                console.warn('Failed to fetch release asset:', response.status, response.statusText);
+                                console.log('✅ Loaded from release');
                             }
-                        } else {
-                            console.warn('No JSON asset found in release. Assets:', release.assets.map(a => a.name));
                         }
-                    } else {
-                        console.warn('Release API call failed:', releaseResponse.status, releaseResponse.statusText);
                     }
-                } catch (releaseErr) {
-                    console.log('Release not available:', releaseErr.message);
-                    console.log('Trying local file...');
+                } catch (e) {
+                    console.log('Release not available, trying local...');
                 }
                 
-                // Priority 2: Fallback to local file (for GitHub Pages)
+                // Fallback to local
                 if (!jsonData) {
                     try {
-                        response = await fetch(LOCAL_JSON_URL);
+                        const response = await fetch(LOCAL_JSON_URL);
                         if (response.ok) {
                             jsonData = await response.json();
                             console.log('✅ Loaded from local file');
@@ -268,41 +561,23 @@
                     }
                 }
                 
-                // Priority 3: Fallback to main branch
+                // Fallback to main branch
                 if (!jsonData) {
-                    response = await fetch(MAIN_JSON_URL);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
+                    const response = await fetch(MAIN_JSON_URL);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     jsonData = await response.json();
                     console.log('✅ Loaded from main branch');
                 }
 
-                if (!jsonData) {
-                    throw new Error('No JSON data loaded');
+                if (!jsonData || !jsonData.benchmarks) {
+                    throw new Error('No benchmark data available');
                 }
 
-                // Check if benchmarks exist (could be empty object)
-                if (!jsonData.benchmarks) {
-                    console.warn('No benchmarks object in JSON. JSON keys:', Object.keys(jsonData));
-                    // Show message that no benchmarks are available yet
-                    contentEl.innerHTML = '<div class="info-box"><p><strong>No benchmark data available yet.</strong></p><p>The benchmarks object is empty. Run benchmarks to populate data.</p><p>JSON structure: ' + JSON.stringify(Object.keys(jsonData)) + '</p></div>';
-                    loadingEl.style.display = 'none';
-                    contentEl.style.display = 'block';
-                    return;
-                }
+                allBenchmarks = Object.entries(jsonData.benchmarks).map(([name, bench]) => ({
+                    name,
+                    ...bench
+                }));
 
-                // Check if benchmarks object has any entries
-                const benchmarkCount = Object.keys(jsonData.benchmarks).length;
-                if (benchmarkCount === 0) {
-                    console.warn('Benchmarks object is empty');
-                    contentEl.innerHTML = '<div class="info-box"><p><strong>No benchmark data available yet.</strong></p><p>The benchmarks have been run but no data was generated. Check the benchmark scripts.</p></div>';
-                    loadingEl.style.display = 'none';
-                    contentEl.style.display = 'block';
-                    return;
-                }
-
-                console.log(`Rendering ${benchmarkCount} benchmarks`);
                 renderBenchmarks(jsonData);
                 loadingEl.style.display = 'none';
                 contentEl.style.display = 'block';
@@ -310,179 +585,319 @@
                 loadingEl.style.display = 'none';
                 errorEl.textContent = `Failed to load benchmark data: ${error.message}`;
                 errorEl.style.display = 'block';
-                console.error('Error loading benchmarks:', error);
+                console.error('Error:', error);
             }
         }
 
         function renderBenchmarks(data) {
             const contentEl = document.getElementById('content');
-            let html = '';
-
-            // Summary
+            
+            // Summary cards
+            let html = '<div class="summary-grid">';
             if (data.summary) {
-                html += '<div class="info-box">';
-                html += `<strong>Total Benchmarks:</strong> ${data.summary.total_benchmarks || 0}<br>`;
-                html += `<strong>Core Wins:</strong> ${data.summary.core_wins || 0}<br>`;
-                html += `<strong>Commons Wins:</strong> ${data.summary.commons_wins || 0}<br>`;
-                if (data.timestamp) {
-                    html += `<strong>Last Updated:</strong> ${new Date(data.timestamp).toLocaleString()}`;
+                html += `<div class="summary-card"><h3>Total Benchmarks</h3><p class="value">${data.summary.total_benchmarks || 0}</p></div>`;
+                html += `<div class="summary-card accent"><h3>Core Benchmarks</h3><p class="value">${data.summary.core_benchmarks || 0}</p></div>`;
+                html += `<div class="summary-card secondary"><h3>Commons Benchmarks</h3><p class="value">${data.summary.commons_benchmarks || 0}</p></div>`;
+                html += `<div class="summary-card"><h3>Comparisons</h3><p class="value">${data.summary.comparisons || 0}</p></div>`;
+            }
+            html += '</div>';
+            
+            // Controls
+            html += '<div class="controls">';
+            html += '<input type="text" id="searchBox" class="search-box" placeholder="Search benchmarks..." onkeyup="filterBenchmarks()">';
+            html += '<div class="filter-buttons">';
+            html += '<button class="filter-btn active" onclick="setFilter(\'all\')">All</button>';
+            html += '<button class="filter-btn" onclick="setFilter(\'comparisons\')">Comparisons</button>';
+            html += '<button class="filter-btn" onclick="setFilter(\'commons-only\')">Commons Only</button>';
+            html += '</div>';
+            html += '</div>';
+            
+            // Separate benchmarks
+            const comparisonBenchmarks = [];
+            const commonsOnlyBenchmarks = [];
+            const failedBenchmarks = [];
+            
+            for (const bench of allBenchmarks) {
+                const hasError = bench.commons?.error || bench.core?.error || bench.error;
+                if (hasError) {
+                    failedBenchmarks.push(bench);
+                    continue;
+                }
+                
+                const hasCore = bench.core && Object.keys(bench.core).length > 0 && !bench.core.error;
+                const hasCommons = bench.commons && Object.keys(bench.commons).length > 0 && !bench.commons.error;
+                
+                if (hasCore && hasCommons) {
+                    comparisonBenchmarks.push(bench);
+                } else if (hasCommons && !hasCore) {
+                    commonsOnlyBenchmarks.push(bench);
+                }
+            }
+            
+            // Comparison benchmarks
+            if (comparisonBenchmarks.length > 0) {
+                html += '<div class="card" id="comparisons-section">';
+                html += '<h1>Fair Comparison Benchmarks</h1>';
+                html += '<p>Direct performance comparisons between Bitcoin Core and Bitcoin Commons.</p>';
+                
+                const categories = groupByCategory(comparisonBenchmarks);
+                for (const [category, benchList] of Object.entries(categories)) {
+                    html += `<h2>${category} <span class="category-badge">${benchList.length}</span></h2>`;
+                    html += renderTable(benchList, true);
                 }
                 html += '</div>';
             }
-
-            // Benchmarks - data.benchmarks is an object with benchmark names as keys
-            if (data.benchmarks && typeof data.benchmarks === 'object') {
-                const benchmarks = Object.entries(data.benchmarks).map(([name, bench]) => ({
-                    name,
-                    ...bench
-                }));
+            
+            // Commons-only benchmarks
+            if (commonsOnlyBenchmarks.length > 0) {
+                html += '<div class="card" id="commons-only-section">';
+                html += '<h1>Bitcoin Commons Only Benchmarks</h1>';
+                html += '<p>Additional benchmarks available only for Bitcoin Commons.</p>';
                 
-                // Separate comparison benchmarks (both Core and Commons) from Commons-only
-                // Also track failed benchmarks
-                const comparisonBenchmarks = [];
-                const commonsOnlyBenchmarks = [];
-                const failedBenchmarks = [];
+                const categories = groupByCategory(commonsOnlyBenchmarks);
+                for (const [category, benchList] of Object.entries(categories)) {
+                    html += `<h2>${category} <span class="category-badge">${benchList.length}</span></h2>`;
+                    html += renderTable(benchList, false);
+                }
+                html += '</div>';
+            }
+            
+            // Failed benchmarks
+            if (failedBenchmarks.length > 0) {
+                html += '<div class="card" id="failed-section">';
+                html += '<h1>Failed Benchmarks</h1>';
+                html += '<p>Benchmarks that encountered errors during execution.</p>';
+                html += renderFailedTable(failedBenchmarks);
+                html += '</div>';
+            }
+            
+            contentEl.innerHTML = html;
+            
+            // Add chart if we have comparisons
+            if (comparisonBenchmarks.length > 0) {
+                addComparisonChart(comparisonBenchmarks);
+            }
+        }
+        
+        function renderTable(benchmarks, isComparison) {
+            let html = '<table>';
+            if (isComparison) {
+                html += '<thead><tr>';
+                html += '<th class="sortable" onclick="sortTable(0)">Benchmark</th>';
+                html += '<th class="sortable" onclick="sortTable(1)">Bitcoin Core</th>';
+                html += '<th class="sortable" onclick="sortTable(2)">Bitcoin Commons</th>';
+                html += '<th class="sortable" onclick="sortTable(3)">Winner</th>';
+                html += '<th class="sortable" onclick="sortTable(4)">Speed Difference</th>';
+                html += '</tr></thead><tbody>';
                 
                 for (const bench of benchmarks) {
-                    // Check if benchmark has an error
-                    const hasError = bench.commons?.error || bench.core?.error || bench.error;
+                    const core = bench.core || {};
+                    const commons = bench.commons || {};
+                    const comparison = bench.comparison || {};
                     
-                    if (hasError) {
-                        // Failed benchmark - show separately
-                        failedBenchmarks.push(bench);
-                        continue;
+                    const coreTime = extractTime(core);
+                    const commonsTime = extractTime(commons);
+                    const winner = comparison.winner || 'N/A';
+                    const speedup = comparison.speedup || '';
+                    
+                    const winnerClass = winner === 'core' ? 'winner-core' : 
+                                       winner === 'commons' ? 'winner-commons' : '';
+                    
+                    let winnerDisplay = '—';
+                    if (winner === 'core') {
+                        winnerDisplay = '<span class="winner-badge winner-core">Core</span>';
+                    } else if (winner === 'commons') {
+                        winnerDisplay = '<span class="winner-badge winner-commons">Commons</span>';
                     }
                     
-                    const hasCore = bench.core && Object.keys(bench.core).length > 0 && !bench.core.error;
-                    const hasCommons = bench.commons && Object.keys(bench.commons).length > 0 && !bench.commons.error;
-                    
-                    if (hasCore && hasCommons) {
-                        // Both Core and Commons - this is a comparison
-                        comparisonBenchmarks.push(bench);
-                    } else if (hasCommons && !hasCore) {
-                        // Commons only - show separately
-                        commonsOnlyBenchmarks.push(bench);
-                    }
-                    // Skip Core-only benchmarks (they're not useful for comparison)
+                    html += '<tr>';
+                    html += `<td class="benchmark-name">${bench.name}</td>`;
+                    html += `<td class="time-value">${coreTime}</td>`;
+                    html += `<td class="time-value">${commonsTime}</td>`;
+                    html += `<td>${winnerDisplay}</td>`;
+                    html += `<td class="speedup">${speedup ? speedup + 'x' : '—'}</td>`;
+                    html += '</tr>';
                 }
-                
-                // Render comparison benchmarks by category
-                if (comparisonBenchmarks.length > 0) {
-                    html += '<h1>Fair Comparison Benchmarks</h1>';
-                    html += '<p>Benchmarks with both Bitcoin Core and Bitcoin Commons data for direct comparison.</p>';
-                    
-                    const comparisonCategories = groupByCategory(comparisonBenchmarks);
-                    
-                    for (const [category, benchList] of Object.entries(comparisonCategories)) {
-                        html += `<h2>${category}</h2>`;
-                        html += '<table>';
-                        html += '<tr><th>Benchmark</th><th>Bitcoin Core</th><th>Bitcoin Commons</th><th>Winner</th><th>Speed Difference</th></tr>';
-                        
-                        for (const bench of benchList) {
-                            const core = bench.core || {};
-                            const commons = bench.commons || {};
-                            const comparison = bench.comparison || {};
-                            
-                            // Extract time from various possible structures
-                            const coreTime = extractTime(core);
-                            const commonsTime = extractTime(commons);
-                            const winner = comparison.winner || 'N/A';
-                            const speedup = comparison.speedup || comparison.speed_difference || '';
-                            
-                            const winnerClass = winner === 'core' ? 'winner-core' : 
-                                               winner === 'commons' ? 'winner-commons' : 
-                                               'winner-tie';
-                            
-                            // Format winner display
-                            let winnerDisplay = '—';
-                            if (winner === 'core') {
-                                winnerDisplay = '🏆 Core';
-                            } else if (winner === 'commons') {
-                                winnerDisplay = '🏆 Commons';
-                            }
-                            
-                            html += '<tr>';
-                            html += `<td><strong>${bench.name || 'Unknown'}</strong></td>`;
-                            html += `<td style="text-align: right;">${coreTime}</td>`;
-                            html += `<td style="text-align: right;">${commonsTime}</td>`;
-                            html += `<td class="${winnerClass}" style="text-align: center;">${winnerDisplay}</td>`;
-                            html += `<td class="speedup" style="text-align: right;">${speedup || '—'}</td>`;
-                            html += '</tr>';
-                        }
-                        
-                        html += '</table>';
-                    }
-                }
-                
-                // Render Commons-only benchmarks separately
-                if (commonsOnlyBenchmarks.length > 0) {
-                    html += '<h1>Bitcoin Commons Only Benchmarks</h1>';
-                    html += '<p>Additional benchmarks available only for Bitcoin Commons (no Core equivalent).</p>';
-                    
-                    const commonsOnlyCategories = groupByCategory(commonsOnlyBenchmarks);
-                    
-                    for (const [category, benchList] of Object.entries(commonsOnlyCategories)) {
-                        html += `<h2>${category}</h2>`;
-                        html += '<table>';
-                        html += '<tr><th>Benchmark</th><th>Bitcoin Commons</th><th>Notes</th></tr>';
-                        
-                        for (const bench of benchList) {
-                            const commons = bench.commons || {};
-                            const commonsTime = extractTime(commons);
-                            
-                            html += '<tr>';
-                            html += `<td><strong>${bench.name || 'Unknown'}</strong></td>`;
-                            html += `<td style="text-align: right;">${commonsTime}</td>`;
-                            html += `<td>Commons-only benchmark</td>`;
-                            html += '</tr>';
-                        }
-                        
-                        html += '</table>';
-                    }
-                }
-                
-                // Render failed benchmarks separately
-                if (failedBenchmarks.length > 0) {
-                    html += '<h1>Failed Benchmarks</h1>';
-                    html += '<p>Benchmarks that encountered errors during execution. Check log files for details.</p>';
-                    
-                    const failedCategories = groupByCategory(failedBenchmarks);
-                    
-                    for (const [category, benchList] of Object.entries(failedCategories)) {
-                        html += `<h2>${category}</h2>`;
-                        html += '<table>';
-                        html += '<tr><th>Benchmark</th><th>Status</th><th>Error Details</th><th>Log File</th></tr>';
-                        
-                        for (const bench of benchList) {
-                            const error = bench.commons?.error || bench.core?.error || bench.error || 'Unknown error';
-                            const logFile = bench.commons?.log_file || bench.core?.log_file || bench.log_file || '—';
-                            const note = bench.commons?.note || bench.core?.note || bench.note || '';
-                            
-                            html += '<tr>';
-                            html += `<td><strong>${bench.name || 'Unknown'}</strong></td>`;
-                            html += `<td style="color: #c33; font-weight: bold;">❌ Failed</td>`;
-                            html += `<td>${error}${note ? '<br><small>' + note + '</small>' : ''}</td>`;
-                            html += `<td><small>${logFile}</small></td>`;
-                            html += '</tr>';
-                        }
-                        
-                        html += '</table>';
-                    }
+            } else {
+                html += '<thead><tr><th>Benchmark</th><th>Bitcoin Commons</th><th>Notes</th></tr></thead><tbody>';
+                for (const bench of benchmarks) {
+                    const commons = bench.commons || {};
+                    const commonsTime = extractTime(commons);
+                    html += '<tr>';
+                    html += `<td class="benchmark-name">${bench.name}</td>`;
+                    html += `<td class="time-value">${commonsTime}</td>`;
+                    html += '<td>Commons-only benchmark</td>';
+                    html += '</tr>';
                 }
             }
-
-            contentEl.innerHTML = html;
+            html += '</tbody></table>';
+            return html;
         }
-
+        
+        function renderFailedTable(benchmarks) {
+            let html = '<table><thead><tr><th>Benchmark</th><th>Status</th><th>Error Details</th></tr></thead><tbody>';
+            for (const bench of benchmarks) {
+                const error = bench.commons?.error || bench.core?.error || bench.error || 'Unknown error';
+                html += '<tr>';
+                html += `<td class="benchmark-name">${bench.name || 'Unknown'}</td>`;
+                html += '<td style="color: #c33; font-weight: bold;">❌ Failed</td>';
+                html += `<td>${error}</td>`;
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            return html;
+        }
+        
+        function addComparisonChart(benchmarks) {
+            const chartData = benchmarks
+                .filter(b => b.comparison && b.comparison.core_time_ms && b.comparison.commons_time_ms)
+                .slice(0, 20) // Limit to top 20 for readability
+                .map(b => ({
+                    name: b.name,
+                    core: b.comparison.core_time_ms,
+                    commons: b.comparison.commons_time_ms
+                }))
+                .sort((a, b) => Math.max(a.core, a.commons) - Math.max(b.core, b.commons));
+            
+            if (chartData.length === 0) return;
+            
+            const chartHtml = `
+                <div class="chart-container">
+                    <h2>Performance Comparison Chart</h2>
+                    <canvas id="comparisonChart" width="400" height="200"></canvas>
+                </div>
+            `;
+            
+            const firstCard = document.querySelector('.card');
+            if (firstCard) {
+                firstCard.insertAdjacentHTML('afterbegin', chartHtml);
+                
+                const ctx = document.getElementById('comparisonChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.map(d => d.name),
+                        datasets: [{
+                            label: 'Bitcoin Core',
+                            data: chartData.map(d => d.core),
+                            backgroundColor: 'rgba(33, 150, 243, 0.6)',
+                            borderColor: 'rgba(33, 150, 243, 1)',
+                            borderWidth: 1
+                        }, {
+                            label: 'Bitcoin Commons',
+                            data: chartData.map(d => d.commons),
+                            backgroundColor: 'rgba(76, 175, 80, 0.6)',
+                            borderColor: 'rgba(76, 175, 80, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Time (ms)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Performance Comparison (Top 20 Benchmarks)'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            filterBenchmarks();
+        }
+        
+        function filterBenchmarks() {
+            const searchTerm = document.getElementById('searchBox')?.value.toLowerCase() || '';
+            
+            document.querySelectorAll('tbody tr').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const matchesSearch = !searchTerm || text.includes(searchTerm);
+                
+                let matchesFilter = true;
+                if (currentFilter === 'comparisons') {
+                    matchesFilter = row.closest('#comparisons-section') !== null;
+                } else if (currentFilter === 'commons-only') {
+                    matchesFilter = row.closest('#commons-only-section') !== null;
+                }
+                
+                if (matchesSearch && matchesFilter) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+            
+            // Hide empty sections
+            document.querySelectorAll('.card').forEach(card => {
+                const visibleRows = card.querySelectorAll('tbody tr:not(.hidden)');
+                if (visibleRows.length === 0) {
+                    card.style.display = 'none';
+                } else {
+                    card.style.display = 'block';
+                }
+            });
+        }
+        
+        function sortTable(columnIndex) {
+            // Implementation for sortable tables
+            const table = event.target.closest('table');
+            if (!table) return;
+            
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const isAsc = sortColumn === columnIndex && sortDirection === 'asc';
+            sortDirection = isAsc ? 'desc' : 'asc';
+            sortColumn = columnIndex;
+            
+            // Update sort indicators
+            table.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('asc', 'desc');
+            });
+            event.target.classList.add(sortDirection);
+            
+            rows.sort((a, b) => {
+                const aVal = a.cells[columnIndex]?.textContent.trim() || '';
+                const bVal = b.cells[columnIndex]?.textContent.trim() || '';
+                
+                // Try numeric comparison
+                const aNum = parseFloat(aVal);
+                const bNum = parseFloat(bVal);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return isAsc ? bNum - aNum : aNum - bNum;
+                }
+                
+                // String comparison
+                return isAsc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+            });
+            
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
         function extractTime(data) {
             if (!data || typeof data !== 'object') return '—';
             
-            // Try various time fields (direct)
             let time = data.time_ms || data.time_ns || data.time || data.median || data.mean || 0;
             
-            // If no direct time, look in nested structures
             if (!time || time === 0) {
-                // Check benchmarks array
                 if (data.benchmarks && Array.isArray(data.benchmarks) && data.benchmarks.length > 0) {
                     const firstBench = data.benchmarks[0];
                     time = firstBench.time_ms || firstBench.time_ns || firstBench.time || 
@@ -490,64 +905,33 @@
                            (firstBench.statistics && (firstBench.statistics.median?.point_estimate || firstBench.statistics.mean?.point_estimate)) || 0;
                 }
                 
-                // Check statistics object
                 if ((!time || time === 0) && data.statistics) {
                     time = data.statistics.median?.point_estimate || 
                            data.statistics.mean?.point_estimate || 0;
                 }
-                
-                // Check nested objects (e.g., bitcoin_core_block_validation.primary_comparison.time_per_block_ms)
-                // Also check for Commons-specific structures like bitcoin_commons_block_validation.connect_block.time_per_block_ms
-                if (!time || time === 0) {
-                    const findNestedTime = (obj, depth = 0) => {
-                        if (depth > 8) return 0; // Prevent infinite recursion (increased depth)
-                        for (const key in obj) {
-                            // Check for time fields (including time_per_block_ms, time_per_block_ns, etc.)
-                            if (key.includes('time') && typeof obj[key] === 'number' && obj[key] > 0) {
-                                return obj[key];
-                            }
-                            // Check for median/mean fields
-                            if (key === 'median' || key === 'mean') {
-                                const val = obj[key];
-                                if (typeof val === 'number' && val > 0) return val;
-                                if (val && typeof val === 'object' && val.point_estimate && val.point_estimate > 0) {
-                                    return val.point_estimate;
-                                }
-                            }
-                            // Check for nested structures (connect_block, primary_comparison, etc.)
-                            if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                                const found = findNestedTime(obj[key], depth + 1);
-                                if (found) return found;
-                            }
-                            // Check arrays for time values
-                            if (Array.isArray(obj[key])) {
-                                for (const item of obj[key]) {
-                                    if (typeof item === 'object' && item !== null) {
-                                        const found = findNestedTime(item, depth + 1);
-                                        if (found) return found;
-                                    }
-                                }
-                            }
-                        }
-                        return 0;
-                    };
-                    time = findNestedTime(data);
-                }
-            }
-            
-            // Convert time_per_block_ms to ms if found
-            if (time > 0 && time < 0.001) {
-                // Might be in seconds, check if we need to convert
-                // This handles cases where time_per_block_ms is actually in a different unit
             }
             
             return formatTime(time);
         }
-
+        
+        function formatTime(time) {
+            if (!time || time === 0 || isNaN(time)) return '—';
+            
+            if (time >= 1000000) {
+                return `${(time / 1000000).toFixed(2)} ms`;
+            } else if (time >= 1000) {
+                return `${(time / 1000).toFixed(2)} ms`;
+            } else if (time < 1 && time > 0) {
+                return `${(time * 1000).toFixed(2)} ms`;
+            } else if (time >= 1) {
+                return `${time.toFixed(2)} ms`;
+            } else {
+                return `${time.toFixed(2)} ms`;
+            }
+        }
+        
         function groupByCategory(benchmarks) {
             const categories = {};
-            
-            // Category mapping based on benchmark names
             const categoryMap = {
                 'block': 'Block Operations',
                 'transaction': 'Transaction Operations',
@@ -558,14 +942,18 @@
                 'rpc': 'RPC Performance',
                 'sync': 'Sync Performance',
                 'memory': 'Memory Efficiency',
-                'concurrent': 'Concurrent Operations'
+                'concurrent': 'Concurrent Operations',
+                'deep-analysis': 'Deep Analysis',
+                'base58-bech32': 'Encoding/Decoding',
+                'utxo-caching': 'UTXO Caching',
+                'duplicate-inputs': 'Duplicate Input Detection',
+                'segwit': 'SegWit Operations',
+                'connectblock': 'Block Connection'
             };
             
             for (const bench of benchmarks) {
-                // Determine category from benchmark name
                 let category = 'General';
                 const nameLower = (bench.name || '').toLowerCase();
-                
                 for (const [key, cat] of Object.entries(categoryMap)) {
                     if (nameLower.includes(key)) {
                         category = cat;
@@ -581,42 +969,6 @@
             
             return categories;
         }
-
-        function formatTime(time) {
-            if (!time || time === 0 || isNaN(time)) return '—';
-            
-            // Handle time_per_block_ms (already in milliseconds)
-            // Handle time_per_block_ns (in nanoseconds)
-            // Handle time_ms (milliseconds)
-            // Handle time_ns (nanoseconds)
-            
-            // If time is in nanoseconds (typically > 1000), convert to ms
-            if (time >= 1000000) {
-                // Likely nanoseconds, convert to ms
-                return `${(time / 1000000).toFixed(2)} ms`;
-            } else if (time >= 1000) {
-                // Could be microseconds, convert to ms
-                return `${(time / 1000).toFixed(2)} ms`;
-            } else if (time < 1 && time > 0) {
-                // Very small number, might be seconds, convert to ms
-                return `${(time * 1000).toFixed(2)} ms`;
-            } else if (time >= 1) {
-                // Already in milliseconds
-                return `${time.toFixed(2)} ms`;
-            } else {
-                // Fallback: assume milliseconds
-                return `${time.toFixed(2)} ms`;
-            }
-        }
-
-        // Auto-load on page load (handle both loading and loaded states)
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadBenchmarkData);
-        } else {
-            // Already loaded, call immediately
-            loadBenchmarkData();
-        }
-        </script>
-    </body>
+    </script>
+</body>
 </html>
-
