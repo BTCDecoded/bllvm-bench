@@ -372,13 +372,7 @@ while IFS= read -r json_file; do
     BENCH_COUNT=$((BENCH_COUNT + 1))
 done <<< "$JSON_FILES"
 
-# Update summary
-# Ensure all counts are valid numbers
-TOTAL_COUNT=${BENCH_COUNT:-0}
-CORE_COUNT_VAL=${CORE_COUNT:-0}
-COMMONS_COUNT_VAL=${COMMONS_COUNT:-0}
-# Use the comparison count from final pass
-COMPARISONS_VAL=${COMPARISON_COUNT:-0}
+# Note: Summary will be updated AFTER final pass sets COMPARISON_COUNT
 
 # Use temp files with JSON numbers for --slurpfile (more reliable than --argjson)
 TEMP_TOTAL=$(mktemp)
@@ -618,7 +612,13 @@ if [ -n "$COMPARISON_KEYS" ]; then
     done <<< "$COMPARISON_KEYS"
 fi
 
-echo "✅ Consolidated JSON generated: $OUTPUT_FILE"
+# Update summary NOW (after final pass has set COMPARISON_COUNT)
+# Ensure all counts are valid numbers
+TOTAL_COUNT=${BENCH_COUNT:-0}
+CORE_COUNT_VAL=${CORE_COUNT:-0}
+COMMONS_COUNT_VAL=${COMMONS_COUNT:-0}
+# Use the comparison count from final pass (set above)
+COMPARISONS_VAL=${COMPARISON_COUNT:-0}
 
 # Validate the output
 if command -v "$SCRIPT_DIR/validate-benchmark.sh" >/dev/null 2>&1; then
