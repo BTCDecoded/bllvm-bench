@@ -65,13 +65,15 @@ EOF
     echo "  Found ${#BENCHMARKS[@]} benchmark(s)"
 else
     echo "WARNING: No block serialization benchmarks found"
+    # Escape raw output safely for JSON
+    RAW_OUTPUT_JSON=$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs . 2>/dev/null || echo "\"Error encoding output\"")
     cat > "$OUTPUT_FILE" << EOF
 {
   "benchmark": "block_serialization",
   "implementation": "bitcoin_commons",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "error": "No block serialization benchmarks found. Please rebuild Commons with the new benchmark.",
-  "raw_output": "$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs .)"
+  "raw_output": $RAW_OUTPUT_JSON
 }
 EOF
 fi

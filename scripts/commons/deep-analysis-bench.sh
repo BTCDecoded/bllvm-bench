@@ -168,8 +168,8 @@ cat > "$OUTPUT_FILE" << EOF
   "analysis_type": "deep_commons_analysis",
   "measurement_method": "Criterion benchmarks with perf instrumentation",
   "system_info": {
-    "cpu": $(echo "$CPU_INFO" | jq -Rs .),
-    "memory": $(echo "$MEM_INFO" | jq -Rs .),
+    "cpu": $(echo "$CPU_INFO" | jq -Rs . 2>/dev/null || echo "\"N/A\""),
+    "memory": $(echo "$MEM_INFO" | jq -Rs . 2>/dev/null || echo "\"N/A\""),
     "perf_available": $USE_PERF
   },
   "benchmarks": $BENCHMARKS,

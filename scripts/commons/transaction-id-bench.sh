@@ -69,37 +69,43 @@ EOF
             echo "  Time: ${TIME_MS} ms (${TIME_NS} ns)"
         else
             echo "WARNING: Could not parse time from Criterion output"
+            # Escape raw output safely for JSON
+            RAW_OUTPUT_JSON=$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs . 2>/dev/null || echo "\"Error encoding output\"")
             cat > "$OUTPUT_FILE" << EOF
 {
   "benchmark": "transaction_id_calculation",
   "implementation": "bitcoin_commons",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "error": "Could not parse timing from Criterion output",
-  "raw_output": "$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs .)"
+  "raw_output": $RAW_OUTPUT_JSON
 }
 EOF
         fi
     else
         echo "WARNING: Could not find timing information in Criterion output"
+        # Escape raw output safely for JSON
+        RAW_OUTPUT_JSON=$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs . 2>/dev/null || echo "\"Error encoding output\"")
         cat > "$OUTPUT_FILE" << EOF
 {
   "benchmark": "transaction_id_calculation",
   "implementation": "bitcoin_commons",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "error": "Could not find timing information",
-  "raw_output": "$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs .)"
+  "raw_output": $RAW_OUTPUT_JSON
 }
 EOF
     fi
 else
     echo "WARNING: Benchmark 'transaction/calculate_id' not found in output"
+    # Escape raw output safely for JSON
+    RAW_OUTPUT_JSON=$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs . 2>/dev/null || echo "\"Error encoding output\"")
     cat > "$OUTPUT_FILE" << EOF
 {
   "benchmark": "transaction_id_calculation",
   "implementation": "bitcoin_commons",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "error": "Benchmark 'transaction/calculate_id' not found",
-  "raw_output": "$(echo "$BENCH_OUTPUT" | head -50 | jq -Rs .)"
+  "raw_output": $RAW_OUTPUT_JSON
 }
 EOF
 fi
