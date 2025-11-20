@@ -4,13 +4,12 @@
 
 set -e
 
-OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
-# OUTPUT_DIR already set by get_output_dir
-mkdir -p "$OUTPUT_DIR"
-OUTPUT_FILE="$OUTPUT_DIR/commons-mempool-rbf-bench-$(date +%Y%m%d-%H%M%S).json"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../shared/common.sh"
+
+OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
+mkdir -p "$OUTPUT_DIR"
+OUTPUT_FILE="$OUTPUT_DIR/commons-mempool-rbf-bench-$(date +%Y%m%d-%H%M%S).json"
 BENCH_DIR="$BLLVM_BENCH_ROOT"
 
 echo "=== Bitcoin Commons Mempool RBF Benchmark ==="

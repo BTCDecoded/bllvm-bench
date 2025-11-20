@@ -26,21 +26,13 @@ EOF
 
 # Verify get_bench_bitcoin function is available
 if ! type get_bench_bitcoin >/dev/null 2>&1; then
-if ! type get_bench_bitcoin >/dev/null 2>&1; then
     echo "❌ get_bench_bitcoin function not found after sourcing common.sh"
     exit 0
 fi
 
 OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
 OUTPUT_FILE="$OUTPUT_DIR/core-transaction-sighash-bench-$(date +%Y%m%d-%H%M%S).json"
-# Measures transaction sighash (signature hash) calculation performance using bench_bitcoin
-set -e
 
-OUTPUT_DIR="${1:-$(dirname "$0")/../results}"
-mkdir -p "$OUTPUT_DIR"
-
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CORE_DIR="$PROJECT_ROOT/core"
 # Reliably find or build bench_bitcoin
 BENCH_BITCOIN=$(get_bench_bitcoin)
 
@@ -91,7 +83,7 @@ while IFS= read -r line; do
 
         if [ -n "$BENCH_NAME" ] && [ "$TIME_NS" != "0" ] && [ -n "$TIME_NS" ]; then
             TIME_MS=$(awk "BEGIN {printf \"%.9f\", $TIME_NS / 1000000}" 2>/dev/null || echo "0")
-            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$BENCH_NAME" --arg name "$name" ". += [{"name": $name, "time_ms": $TIME_MS, "time_ns": $TIME_NS}]" '. += [{"name": $name, "time_ms": $time_ms, "time_ns": $time_ns}]' 2>/dev/null || echo "$BENCHMARKS")
+            BENCHMARKS=$(echo "$BENCHMARKS" | jq --arg name "$BENCH_NAME" ". += [{\"name\": \$name, \"time_ms\": $TIME_MS, \"time_ns\": $TIME_NS}]" 2>/dev/null || echo "$BENCHMARKS")
         fi
     fi
 done <<< "$BENCH_OUTPUT"

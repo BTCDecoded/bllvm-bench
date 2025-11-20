@@ -29,7 +29,6 @@ EOF
 
 # Verify get_bench_bitcoin function is available
 if ! type get_bench_bitcoin >/dev/null 2>&1; then
-if ! type get_bench_bitcoin >/dev/null 2>&1; then
     echo "❌ get_bench_bitcoin function not found after sourcing common.sh"
     exit 0
 fi
@@ -95,8 +94,8 @@ cat > "$OUTPUT_FILE" << EOF
 }
 EOF
 
-echo "✅ Results saved to: $OUTPUT_FILE"
 if [ "$BENCHMARKS" != "[]" ]; then
+    echo "✅ Results saved to: $OUTPUT_FILE"
     echo "$BENCHMARKS" | jq '.' 2>/dev/null || echo "$BENCHMARKS"
 else
     echo "⚠️  No benchmarks found, writing error JSON"

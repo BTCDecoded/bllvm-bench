@@ -95,9 +95,13 @@ elif [ -z "$COMMONS_CONSENSUS_PATH" ]; then
     echo "⚠️  Warning: Commons consensus path not discovered (Core-only mode)" >&2
 fi
 
+# Export BLLVM_BENCH_ROOT so all scripts can use it
+export BLLVM_BENCH_ROOT
+
 # Set up results directory (always define, even if BLLVM_BENCH_ROOT is not set)
 RESULTS_DIR="${RESULTS_DIR:-${BLLVM_BENCH_ROOT:-$(pwd)}/results}"
 mkdir -p "$RESULTS_DIR" 2>/dev/null || true
+export RESULTS_DIR
 
 # Helper function to get output directory (from first argument or default)
 # This function MUST be defined even if path discovery failed

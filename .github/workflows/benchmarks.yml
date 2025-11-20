@@ -2,6 +2,17 @@ name: Run Benchmarks
 
 on:
   workflow_dispatch:  # Manual trigger
+    inputs:
+      suite:
+        description: 'Benchmark suite to run (all, fair, core, commons)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - fair
+          - core
+          - commons
   schedule:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
@@ -403,6 +414,18 @@ jobs:
           PKG_CONFIG_PATH: /usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig
           OPENSSL_DIR: /usr
         run: |
+          # CRITICAL: Unset CC/CXX if they point to ccache
+          # OpenSSL build scripts fail when CC=ccache (they try to use ccache as compiler)
+          # Rust/Cargo will use the system compiler directly, which is what we want
+          if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+            echo "⚠️  Unsetting CC (was ccache) for Rust builds"
+            unset CC
+          fi
+          if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+            echo "⚠️  Unsetting CXX (was ccache) for Rust builds"
+            unset CXX
+          fi
+          
           # Verify pkg-config can find OpenSSL
           echo "Checking OpenSSL installation..."
           pkg-config --modversion openssl || echo "⚠️  pkg-config can't find OpenSSL"
@@ -451,9 +474,12 @@ jobs:
           echo "   COMMONS_CONSENSUS_PATH: $COMMONS_CONSENSUS_PATH"
           echo "   COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
           echo ""
-          echo "🚀 Running ALL benchmarks for FULL coverage..."
-          # Run ALL benchmarks (both Core and Commons) for maximum coverage
-          ./run-benchmarks.sh all 600
+          # Determine which suite to run (default to 'all' for scheduled/push)
+          BENCH_SUITE="${{ github.event.inputs.suite || 'all' }}"
+          echo "🚀 Running benchmark suite: $BENCH_SUITE"
+          
+          # Run selected benchmark suite
+          ./run-benchmarks.sh "$BENCH_SUITE" 600
           
           # Verify benchmarks ran
           echo ""
@@ -469,6 +495,12 @@ jobs:
             echo "⚠️  WARNING: No Commons benchmarks generated!"
           fi
           echo "Total: $((CORE_COUNT + COMMONS_COUNT)) benchmark files"
+          
+          # Fail if no benchmarks were generated (all benchmarks must run)
+          if [ "$CORE_COUNT" -eq 0 ] && [ "$COMMONS_COUNT" -eq 0 ]; then
+            echo "❌ ERROR: No benchmarks were generated! Cannot create release."
+            exit 1
+          fi
 
       - name: Generate consolidated JSON
         run: |
@@ -502,10 +534,31 @@ jobs:
           LATEST_JSON="results/benchmark-results-consolidated-latest.json"
           if [ ! -f "$LATEST_JSON" ]; then
             echo "❌ No consolidated JSON found at $LATEST_JSON"
+            echo "   Release will NOT be created - all benchmarks must complete successfully"
             exit 1
           fi
+          
+          # Validate JSON has content
+          if [ ! -s "$LATEST_JSON" ]; then
+            echo "❌ Consolidated JSON is empty"
+            echo "   Release will NOT be created"
+            exit 1
+          fi
+          
+          # Check that JSON has benchmark data
+          BENCH_COUNT=$(jq -r '.summary.core_benchmarks // 0' "$LATEST_JSON" 2>/dev/null || echo "0")
+          COMMONS_COUNT=$(jq -r '.summary.commons_benchmarks // 0' "$LATEST_JSON" 2>/dev/null || echo "0")
+          
+          if [ "$BENCH_COUNT" = "0" ] && [ "$COMMONS_COUNT" = "0" ]; then
+            echo "❌ Consolidated JSON has no benchmark data"
+            echo "   Release will NOT be created"
+            exit 1
+          fi
+          
           echo "json_file=$LATEST_JSON" >> $GITHUB_OUTPUT
-          echo "Found: $LATEST_JSON"
+          echo "✅ Found valid consolidated JSON: $LATEST_JSON"
+          echo "   Core benchmarks: $BENCH_COUNT"
+          echo "   Commons benchmarks: $COMMONS_COUNT"
 
       - name: Archive old releases (if any)
         run: |
@@ -561,6 +614,11 @@ jobs:
         continue-on-error: true
 
       - name: Create or Update Release (benchmarks-latest)
+        # Only create release if:
+        # 1. All previous steps succeeded
+        # 2. JSON file was found
+        # 3. Running "all" benchmarks (scheduled/push always run "all", manual must explicitly select "all")
+        if: success() && steps.find_json.outputs.json_file != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.suite == 'all')
         uses: softprops/action-gh-release@v1
         with:
           tag_name: benchmarks-latest

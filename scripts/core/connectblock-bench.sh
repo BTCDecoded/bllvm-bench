@@ -38,7 +38,7 @@ echo "=== Bitcoin Core ConnectBlock Benchmark ==="
 echo ""
 
 # Use the existing block validation benchmark script
-"$SCRIPT_DIR/block-validation-bench.sh" "$OUTPUT_DIR"
+"$SCRIPT_DIR/../core/block-validation-bench.sh" "$OUTPUT_DIR"
 
 # Find the most recent core-block-validation-bench file and copy/rename it
 LATEST_BLOCK_VAL=$(find "$OUTPUT_DIR" -name "core-block-validation-bench-*.json" -type f 2>/dev/null | xargs ls -t 2>/dev/null | head -1)

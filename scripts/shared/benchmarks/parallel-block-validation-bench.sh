@@ -118,9 +118,9 @@ COMMONS_BLOCKS_PER_SEC=0
 # Check if we need to create a benchmark for parallel validation
 # For now, we'll create a simple Rust benchmark that uses ParallelBlockValidator
 
-BENCH_DIR="$PROJECT_ROOT/commons/bllvm-bench"
+BENCH_DIR="${BLLVM_BENCH_ROOT:-$PROJECT_ROOT/commons/bllvm-bench}"
 
-if [ -d "$BENCH_DIR" ]; then
+if [ -d "$BENCH_DIR" ] && [ -f "$BENCH_DIR/Cargo.toml" ]; then
     cd "$BENCH_DIR"
     
     echo "Running Commons parallel block validation benchmark..."
@@ -151,6 +151,9 @@ if [ -d "$BENCH_DIR" ]; then
     fi
 else
     echo "❌ bllvm-bench directory not found"
+    echo "  BLLVM_BENCH_ROOT: ${BLLVM_BENCH_ROOT:-not set}"
+    echo "  PROJECT_ROOT: $PROJECT_ROOT"
+    echo "  Tried: $BENCH_DIR"
 fi
 
 echo ""

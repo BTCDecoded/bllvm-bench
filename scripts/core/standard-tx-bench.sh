@@ -29,7 +29,6 @@ EOF
 
 # Verify get_bench_bitcoin function is available
 if ! type get_bench_bitcoin >/dev/null 2>&1; then
-if ! type get_bench_bitcoin >/dev/null 2>&1; then
     echo "❌ get_bench_bitcoin function not found after sourcing common.sh"
     exit 0
 fi

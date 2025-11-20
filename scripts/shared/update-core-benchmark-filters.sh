@@ -48,12 +48,16 @@ echo ""
 # Update mempool-operations-bench.sh
 if [ -n "$MEMPOOL_FILTER" ] && [ -f "$BLLVM_BENCH_ROOT/scripts/core/mempool-operations-bench.sh" ]; then
     echo "✅ Updating mempool-operations-bench.sh"
-    # Update the filter line
+    # Escape special characters for sed
+    ESCAPED_FILTER=$(echo "$MEMPOOL_FILTER" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    # Update the filter line (use different delimiter to avoid conflicts)
     sed -i "s|-filter=\"[^\"]*\"|-filter=\"$MEMPOOL_FILTER\"|g" "$BLLVM_BENCH_ROOT/scripts/core/mempool-operations-bench.sh"
-    # Update grep patterns
-    GREP_PATTERN=$(echo "$MEMPOOL_BENCHMARKS" | tr '\n' '|' | sed 's/|$//')
+    # Update grep patterns (escape properly)
+    GREP_PATTERN=$(echo "$MEMPOOL_BENCHMARKS" | tr '\n' '|' | sed 's/|$//' | sed 's/[[\.*^$()+?{|]/\\&/g')
     sed -i "s|grep -oE \"(MempoolCheck|MempoolEviction|MempoolAccept)\"|grep -oE \"($GREP_PATTERN)\"|g" "$BLLVM_BENCH_ROOT/scripts/core/mempool-operations-bench.sh"
-    sed -i "s|grep -qE '.*MempoolCheck|MempoolEviction|MempoolAccept'|grep -qE '.*$GREP_PATTERN'|g" "$BLLVM_BENCH_ROOT/scripts/core/mempool-operations-bench.sh"
+    # Update grep -qE pattern (use different delimiter)
+    ESCAPED_GREP=$(echo "$MEMPOOL_BENCHMARKS" | tr '\n' '|' | sed 's/|$//' | sed 's/[[\.*^$()+?{|]/\\&/g')
+    sed -i "s|grep -qE '.*MempoolCheck|MempoolEviction|MempoolAccept'|grep -qE '.*$ESCAPED_GREP'|g" "$BLLVM_BENCH_ROOT/scripts/core/mempool-operations-bench.sh"
 fi
 
 # Update transaction benchmarks

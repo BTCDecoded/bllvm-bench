@@ -219,10 +219,19 @@ else
         # Check if rpc_server_bench example exists
         if [ -f "examples/rpc_server_bench.rs" ]; then
             echo "  Found rpc_server_bench.rs, starting server..."
-            # Run RPC server in background
-            RUSTFLAGS="-C target-cpu=native" cargo run --example rpc_server_bench --features production -- --port "$COMMONS_RPC_PORT" > /tmp/commons-rpc-server.log 2>&1 &
+            # Unset CC/CXX if they point to ccache (OpenSSL build issue)
+            if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+                unset CC
+            fi
+            if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+                unset CXX
+            fi
+            # Run RPC server in background (example expects address as first arg: 127.0.0.1:PORT)
+            # The example parses args[1] as SocketAddr, default is 127.0.0.1:18332
+            RUSTFLAGS="-C target-cpu=native" cargo run --example rpc_server_bench --features production -- "127.0.0.1:$COMMONS_RPC_PORT" > /tmp/commons-rpc-server.log 2>&1 &
             COMMONS_RPC_PID=$!
             echo "  Commons RPC server started (PID: $COMMONS_RPC_PID)"
+            echo "  Log: /tmp/commons-rpc-server.log"
             
             # Wait for server to be ready (up to 30 seconds)
             for i in {1..30}; do

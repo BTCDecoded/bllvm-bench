@@ -1,14 +1,14 @@
 #!/bin/bash
 # Bitcoin Commons Transaction Sighash Calculation Benchmark
 # Measures transaction sighash calculation performance using Criterion
-set -e
 
-OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
-# OUTPUT_DIR already set by get_output_dir # Ensure absolute path
-mkdir -p "$OUTPUT_DIR"
+set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../shared/common.sh"
+
+OUTPUT_DIR=$(get_output_dir "${1:-$RESULTS_DIR}")
+mkdir -p "$OUTPUT_DIR"
 BENCH_DIR="$BLLVM_BENCH_ROOT"
 OUTPUT_FILE="$OUTPUT_DIR/commons-transaction-sighash-bench-$(date +%Y%m%d-%H%M%S).json"
 
