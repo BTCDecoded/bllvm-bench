@@ -613,6 +613,42 @@ if [ -n "$COMPARISON_KEYS" ]; then
     done <<< "$COMPARISON_KEYS"
 fi
 
+# Collect codebase metrics if available
+echo ""
+echo "Collecting codebase metrics..."
+CODEBASE_METRICS="{}"
+
+# Look for metrics JSON files
+METRICS_FILES=$(find "$OUTPUT_DIR" -name "metrics-*.json" -type f 2>/dev/null | sort)
+if [ -n "$METRICS_FILES" ]; then
+    echo "Found $(echo "$METRICS_FILES" | wc -l) metrics file(s)"
+    
+    # Combine all metrics into one structure
+    for metrics_file in $METRICS_FILES; do
+        if [ -f "$metrics_file" ]; then
+            METRIC_TYPE=$(jq -r '.metric_type // "unknown"' "$metrics_file" 2>/dev/null || echo "unknown")
+            if [ "$METRIC_TYPE" != "unknown" ] && [ "$METRIC_TYPE" != "null" ]; then
+                METRIC_DATA=$(jq '{bitcoin_core, bitcoin_commons, comparison}' "$metrics_file" 2>/dev/null || echo "{}")
+                CODEBASE_METRICS=$(echo "$CODEBASE_METRICS" | jq --arg type "$METRIC_TYPE" --argjson data "$METRIC_DATA" \
+                    '. + {($type): $data}' 2>/dev/null || echo "$CODEBASE_METRICS")
+            fi
+        fi
+    done
+    
+    if echo "$CODEBASE_METRICS" | jq -e 'keys | length > 0' >/dev/null 2>&1; then
+        echo "✅ Codebase metrics collected"
+        # Add to consolidated JSON
+        TEMP_METRICS=$(mktemp)
+        echo "$CODEBASE_METRICS" > "$TEMP_METRICS"
+        jq --slurpfile metrics_data "$TEMP_METRICS" '.codebase_metrics = $metrics_data[0]' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp" && mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+        rm -f "$TEMP_METRICS"
+    else
+        echo "⚠️  No valid codebase metrics found"
+    fi
+else
+    echo "⚠️  No metrics files found (metrics collection may be disabled)"
+fi
+
 # Update summary NOW (after final pass has set COMPARISON_COUNT)
 # Ensure all counts are valid numbers
 TOTAL_COUNT=${BENCH_COUNT:-0}

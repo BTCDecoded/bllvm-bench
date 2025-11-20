@@ -46,20 +46,31 @@ jobs:
         run: |
           # Install OpenSSL and pkg-config (required for Rust OpenSSL bindings)
           # Also install ccache (Rust OpenSSL bindings try to use it)
+          # Install tokei for codebase metrics (if available)
           if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get update
-            sudo apt-get install -y libssl-dev pkg-config ccache
+            sudo apt-get install -y libssl-dev pkg-config ccache tokei || echo "⚠️  tokei not available via apt"
           elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y openssl-devel pkgconfig ccache
+            sudo yum install -y openssl-devel pkgconfig ccache || echo "⚠️  Some packages not available via yum"
           elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y openssl-devel pkgconfig ccache
+            sudo dnf install -y openssl-devel pkgconfig ccache tokei || echo "⚠️  tokei not available via dnf"
           elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm openssl pkgconf ccache
+            sudo pacman -S --noconfirm openssl pkgconf ccache tokei || echo "⚠️  tokei not available via pacman"
           elif command -v apk >/dev/null 2>&1; then
-            sudo apk add openssl-dev pkgconfig ccache
+            sudo apk add openssl-dev pkgconfig ccache || echo "⚠️  Some packages not available via apk"
           else
             echo "⚠️  Unknown package manager, skipping system dependency installation"
             echo "   You may need to install libssl-dev, pkg-config, and ccache manually"
+          fi
+          
+          # Install tokei via cargo if not available via package manager
+          if ! command -v tokei >/dev/null 2>&1; then
+            if command -v cargo >/dev/null 2>&1; then
+              echo "Installing tokei via cargo..."
+              cargo install tokei --locked || echo "⚠️  Failed to install tokei via cargo"
+            else
+              echo "⚠️  tokei not available and cargo not found"
+            fi
           fi
 
       - name: Cache Rust dependencies

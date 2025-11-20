@@ -317,6 +317,33 @@ echo "Summary saved to: $SUITE_DIR/summary.json"
 echo ""
 echo "✅ Benchmarks complete!"
 echo ""
+
+# Collect codebase metrics if enabled
+if [ "${COLLECT_METRICS:-false}" = "true" ] || [ "${BENCH_SUITE}" = "all" ]; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Collecting Codebase Metrics"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    if [ -f "scripts/metrics/code-size.sh" ]; then
+        echo "Running code size metrics..."
+        ./scripts/metrics/code-size.sh "$RESULTS_DIR" || echo "⚠️  Code size metrics failed"
+    fi
+    
+    if [ -f "scripts/metrics/features.sh" ]; then
+        echo "Running feature flags analysis..."
+        ./scripts/metrics/features.sh "$RESULTS_DIR" || echo "⚠️  Feature flags analysis failed"
+    fi
+    
+    if [ -f "scripts/metrics/tests.sh" ]; then
+        echo "Running test metrics..."
+        ./scripts/metrics/tests.sh "$RESULTS_DIR" || echo "⚠️  Test metrics failed"
+    fi
+    
+    echo "✅ Codebase metrics collection complete"
+    echo ""
+fi
+
 echo "To generate a report, run:"
 echo "  ./scripts/report/generate-report.sh"
 
