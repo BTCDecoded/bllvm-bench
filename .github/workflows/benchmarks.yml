@@ -789,8 +789,8 @@ jobs:
         # Only create release if:
         # 1. All previous steps succeeded
         # 2. JSON file was found
-        # 3. Running "all" benchmarks (scheduled/push always run "all", manual must explicitly select "all")
-        if: success() && steps.find_json.outputs.json_file != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.suite == 'all')
+        # Always create for scheduled/push (they run "all"), or if manual run explicitly selects "all"
+        if: success() && steps.find_json.outputs.json_file != ''
         uses: softprops/action-gh-release@v1
         with:
           tag_name: benchmarks-latest

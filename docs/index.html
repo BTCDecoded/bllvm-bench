@@ -509,7 +509,7 @@
     <script>
         // Configuration
         const RELEASE_TAG = 'benchmarks-latest';
-        const RELEASE_JSON_URL = `https://api.github.com/repos/BTCDecoded/bllvm-bench/releases/tags/${RELEASE_TAG}`;
+        const RELEASE_JSON_URL = `https://api.github.com/repos/BTCDecoded/bllvm-bench/releases/tags/${RELEASE_TAG}?t=${Date.now()}`;
         const LOCAL_JSON_URL = './data/benchmark-results-consolidated-latest.json';
         const MAIN_JSON_URL = 'https://raw.githubusercontent.com/BTCDecoded/bllvm-bench/main/docs/data/benchmark-results-consolidated-latest.json';
         
