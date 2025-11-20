@@ -376,11 +376,30 @@ jobs:
           fi
           
           echo "Building bench_bitcoin..."
-          if ! cmake --build build -t bench_bitcoin -j$(nproc) 2>&1 | tee /tmp/cmake-build.log; then
-            echo "❌ Failed to build bench_bitcoin"
+          if ! cmake --build build --target bench_bitcoin -j$(nproc) 2>&1 | tee /tmp/cmake-build.log; then
+            echo "❌ Failed to build bench_bitcoin with CMake"
             echo "Build log (last 30 lines):"
             tail -30 /tmp/cmake-build.log
-            exit 1
+            echo ""
+            echo "Trying autotools fallback..."
+            if [ -f "autogen.sh" ]; then
+              ./autogen.sh || {
+                echo "❌ autogen.sh failed"
+                exit 1
+              }
+              ./configure --enable-bench --disable-wallet --disable-gui || {
+                echo "❌ Configure failed"
+                exit 1
+              }
+              make -j$(nproc) bench_bitcoin || {
+                echo "❌ Build failed"
+                exit 1
+              }
+              echo "✅ bench_bitcoin built successfully with autotools"
+            else
+              echo "❌ No autotools fallback available"
+              exit 1
+            fi
           fi
           
           # Verify bench_bitcoin exists
