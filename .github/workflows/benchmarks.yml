@@ -134,12 +134,35 @@ jobs:
             echo "✅ Path dependency already exists: $RELATIVE_CONSENSUS_DIR"
           fi
           
-          # Verify it's accessible
+          # Verify it's accessible (follow symlink)
           if [ ! -f "$RELATIVE_CONSENSUS_DIR/Cargo.toml" ]; then
             echo "❌ ERROR: Cargo.toml not found at $RELATIVE_CONSENSUS_DIR/Cargo.toml"
-            echo "   This will cause Commons benchmarks to fail!"
+            echo "   Checking symlink..."
+            if [ -L "$RELATIVE_CONSENSUS_DIR" ]; then
+              echo "   Symlink target: $(readlink -f "$RELATIVE_CONSENSUS_DIR")"
+              if [ -f "$(readlink -f "$RELATIVE_CONSENSUS_DIR")/Cargo.toml" ]; then
+                echo "   ✅ Cargo.toml exists at symlink target"
+              else
+                echo "   ❌ Cargo.toml NOT found at symlink target"
+                exit 1
+              fi
+            else
+              echo "   This will cause Commons benchmarks to fail!"
+              exit 1
+            fi
+          fi
+          
+          # Double-check: verify from bllvm-bench directory that cargo can see it
+          echo "Verifying path dependency from bllvm-bench directory..."
+          cd "$BENCH_ROOT"
+          if [ ! -f "../bllvm-consensus/Cargo.toml" ]; then
+            echo "❌ ERROR: Cannot access ../bllvm-consensus/Cargo.toml from bllvm-bench root"
+            echo "   Current directory: $(pwd)"
+            echo "   Expected path: $(pwd)/../bllvm-consensus/Cargo.toml"
+            ls -la .. | grep bllvm || echo "   No bllvm-* directories found in parent"
             exit 1
           fi
+          echo "✅ Path dependency verified from bllvm-bench root"
           
           # Setup Commons node
           NODE_DIR="$HOME/bllvm-node"
@@ -176,9 +199,26 @@ jobs:
             echo "✅ Path dependency already exists: $RELATIVE_NODE_DIR"
           fi
           
-          # Verify it's accessible
+          # Verify it's accessible (follow symlink)
           if [ ! -f "$RELATIVE_NODE_DIR/Cargo.toml" ]; then
             echo "❌ ERROR: Cargo.toml not found at $RELATIVE_NODE_DIR/Cargo.toml"
+            if [ -L "$RELATIVE_NODE_DIR" ]; then
+              echo "   Symlink target: $(readlink -f "$RELATIVE_NODE_DIR")"
+              if [ -f "$(readlink -f "$RELATIVE_NODE_DIR")/Cargo.toml" ]; then
+                echo "   ✅ Cargo.toml exists at symlink target"
+              else
+                echo "   ❌ Cargo.toml NOT found at symlink target"
+                exit 1
+              fi
+            else
+              exit 1
+            fi
+          fi
+          
+          # Double-check from bllvm-bench directory
+          cd "$BENCH_ROOT"
+          if [ ! -f "../bllvm-node/Cargo.toml" ]; then
+            echo "❌ ERROR: Cannot access ../bllvm-node/Cargo.toml from bllvm-bench root"
             exit 1
           fi
           
