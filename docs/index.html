@@ -634,6 +634,15 @@
                 }
             }
             
+            // Codebase Metrics Section
+            if (data.codebase_metrics && Object.keys(data.codebase_metrics).length > 0) {
+                html += '<div class="card" id="metrics-section">';
+                html += '<h1>📊 Codebase Metrics</h1>';
+                html += '<p>Codebase size, features, tests, and quality metrics comparison.</p>';
+                html += renderCodebaseMetrics(data.codebase_metrics);
+                html += '</div>';
+            }
+            
             // Comparison benchmarks
             if (comparisonBenchmarks.length > 0) {
                 html += '<div class="card" id="comparisons-section">';
@@ -677,6 +686,103 @@
             if (comparisonBenchmarks.length > 0) {
                 addComparisonChart(comparisonBenchmarks);
             }
+        }
+        
+        function renderCodebaseMetrics(metrics) {
+            let html = '';
+            
+            // Code Size Metrics
+            if (metrics.code_size) {
+                html += '<h2>Code Size</h2>';
+                html += '<table>';
+                html += '<thead><tr><th>Metric</th><th>Bitcoin Core</th><th>Bitcoin Commons</th><th>Ratio</th></tr></thead><tbody>';
+                
+                const core = metrics.code_size.bitcoin_core || {};
+                const commons = metrics.code_size.bitcoin_commons || {};
+                const comp = metrics.code_size.comparison || {};
+                
+                html += `<tr><td>Total LOC</td><td>${formatNumber(core.total_loc || 0)}</td><td>${formatNumber(commons.total_loc || 0)}</td><td>${comp.loc_ratio ? comp.loc_ratio.toFixed(2) : '-'}</td></tr>`;
+                html += `<tr><td>Source LOC (SLOC)</td><td>${formatNumber(core.sloc || 0)}</td><td>${formatNumber(commons.sloc || 0)}</td><td>-</td></tr>`;
+                html += `<tr><td>Total Files</td><td>${formatNumber(core.total_files || 0)}</td><td>${formatNumber(commons.total_files || 0)}</td><td>${comp.files_ratio ? comp.files_ratio.toFixed(2) : '-'}</td></tr>`;
+                
+                html += '</tbody></table>';
+            }
+            
+            // Features Metrics
+            if (metrics.features) {
+                html += '<h2>Feature Flags</h2>';
+                html += '<table>';
+                html += '<thead><tr><th>Metric</th><th>Bitcoin Core</th><th>Bitcoin Commons</th><th>Delta</th></tr></thead><tbody>';
+                
+                const core = metrics.features.bitcoin_core || {};
+                const commons = metrics.features.bitcoin_commons || {};
+                const comp = metrics.features.comparison || {};
+                
+                html += `<tr><td>Total Features</td><td>${formatNumber(core.total_features || 0)}</td><td>${formatNumber(commons.total_features || 0)}</td><td>${comp.feature_count_delta || 0}</td></tr>`;
+                html += `<tr><td>Feature Gates</td><td>${formatNumber(core.conditional_blocks || 0)}</td><td>${formatNumber(commons.total_feature_gates || 0)}</td><td>-</td></tr>`;
+                
+                html += '</tbody></table>';
+            }
+            
+            // Test Metrics
+            if (metrics.tests) {
+                html += '<h2>Test Metrics</h2>';
+                html += '<table>';
+                html += '<thead><tr><th>Metric</th><th>Bitcoin Core</th><th>Bitcoin Commons</th><th>Delta</th></tr></thead><tbody>';
+                
+                const core = metrics.tests.bitcoin_core || {};
+                const commons = metrics.tests.bitcoin_commons || {};
+                const comp = metrics.tests.comparison || {};
+                
+                html += `<tr><td>Test Files</td><td>${formatNumber(core.test_files || 0)}</td><td>${formatNumber(commons.test_files || 0)}</td><td>${comp.test_files_delta || 0}</td></tr>`;
+                html += `<tr><td>Test LOC</td><td>${formatNumber(core.test_loc || 0)}</td><td>${formatNumber(commons.test_loc || 0)}</td><td>-</td></tr>`;
+                html += `<tr><td>Test/Prod Ratio</td><td>${(core.test_to_production_ratio || 0).toFixed(3)}</td><td>${(commons.test_to_production_ratio || 0).toFixed(3)}</td><td>${comp.ratio_delta ? comp.ratio_delta.toFixed(3) : '-'}</td></tr>`;
+                
+                html += '</tbody></table>';
+            }
+            
+            // Combined View
+            if (metrics.combined_view) {
+                html += '<h2>Combined View (Code + Tests)</h2>';
+                html += '<table>';
+                html += '<thead><tr><th>Metric</th><th>Bitcoin Core</th><th>Bitcoin Commons</th><th>Ratio</th></tr></thead><tbody>';
+                
+                const core = metrics.combined_view.bitcoin_core?.totals || {};
+                const commons = metrics.combined_view.bitcoin_commons?.totals || {};
+                const comp = metrics.combined_view.comparison || {};
+                
+                html += `<tr><td>Total LOC (Prod + Tests)</td><td>${formatNumber(core.total_loc || 0)}</td><td>${formatNumber(commons.total_loc || 0)}</td><td>${comp.total_loc_ratio ? comp.total_loc_ratio.toFixed(2) : '-'}</td></tr>`;
+                html += `<tr><td>Production LOC</td><td>${formatNumber(core.production_loc || 0)}</td><td>${formatNumber(commons.production_loc || 0)}</td><td>${comp.production_loc_ratio ? comp.production_loc_ratio.toFixed(2) : '-'}</td></tr>`;
+                html += `<tr><td>Test LOC</td><td>${formatNumber(core.test_loc || 0)}</td><td>${formatNumber(commons.test_loc || 0)}</td><td>${comp.test_loc_ratio ? comp.test_loc_ratio.toFixed(2) : '-'}</td></tr>`;
+                
+                html += '</tbody></table>';
+            }
+            
+            // Full View
+            if (metrics.full_view) {
+                html += '<h2>Full View (Code + Tests + Comments)</h2>';
+                html += '<table>';
+                html += '<thead><tr><th>Metric</th><th>Bitcoin Core</th><th>Bitcoin Commons</th><th>Ratio/Delta</th></tr></thead><tbody>';
+                
+                const core = metrics.full_view.bitcoin_core?.totals || {};
+                const commons = metrics.full_view.bitcoin_commons?.totals || {};
+                const comp = metrics.full_view.comparison || {};
+                const coreComments = metrics.full_view.bitcoin_core?.comments || {};
+                const commonsComments = metrics.full_view.bitcoin_commons?.comments || {};
+                
+                html += `<tr><td>Total LOC (with comments)</td><td>${formatNumber(core.total_with_comments || 0)}</td><td>${formatNumber(commons.total_with_comments || 0)}</td><td>${comp.total_loc_ratio ? comp.total_loc_ratio.toFixed(2) : '-'}</td></tr>`;
+                html += `<tr><td>Comment Density</td><td>${(coreComments.comment_density || 0).toFixed(3)}</td><td>${(commonsComments.comment_density || 0).toFixed(3)}</td><td>${comp.comment_density_delta ? comp.comment_density_delta.toFixed(3) : '-'}</td></tr>`;
+                html += `<tr><td>Documentation Files</td><td>${formatNumber(coreComments.documentation_files || 0)}</td><td>${formatNumber(commonsComments.documentation_files || 0)}</td><td>-</td></tr>`;
+                
+                html += '</tbody></table>';
+            }
+            
+            return html;
+        }
+        
+        function formatNumber(num) {
+            if (typeof num !== 'number') return num || '0';
+            return num.toLocaleString();
         }
         
         function renderTable(benchmarks, isComparison) {

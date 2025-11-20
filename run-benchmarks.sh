@@ -340,6 +340,17 @@ if [ "${COLLECT_METRICS:-false}" = "true" ] || [ "${BENCH_SUITE}" = "all" ]; the
         ./scripts/metrics/tests.sh "$RESULTS_DIR" || echo "⚠️  Test metrics failed"
     fi
     
+    # Phase 2: Combined views
+    if [ -f "scripts/metrics/combined-view.sh" ]; then
+        echo "Generating combined view..."
+        ./scripts/metrics/combined-view.sh "$RESULTS_DIR" || echo "⚠️  Combined view failed"
+    fi
+    
+    if [ -f "scripts/metrics/full-view.sh" ]; then
+        echo "Generating full view..."
+        ./scripts/metrics/full-view.sh "$RESULTS_DIR" || echo "⚠️  Full view failed"
+    fi
+    
     echo "✅ Codebase metrics collection complete"
     echo ""
 fi
