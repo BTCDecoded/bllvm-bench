@@ -542,6 +542,42 @@ jobs:
           pkg-config --modversion openssl || echo "⚠️  pkg-config can't find OpenSSL"
           pkg-config --cflags openssl || echo "⚠️  pkg-config can't get OpenSSL flags"
           
+          # Pre-flight check: Verify path dependencies are accessible before running benchmarks
+          BENCH_ROOT="$(pwd)"
+          echo "Pre-flight check: Verifying path dependencies from $BENCH_ROOT..."
+          
+          if [ ! -f "../bllvm-consensus/Cargo.toml" ]; then
+            echo "❌ CRITICAL: ../bllvm-consensus/Cargo.toml not accessible from bllvm-bench root"
+            echo "   Current directory: $(pwd)"
+            echo "   Attempting to fix symlink..."
+            if [ -L "../bllvm-consensus" ]; then
+              echo "   Symlink exists but may be broken: $(readlink "../bllvm-consensus")"
+              rm -f "../bllvm-consensus"
+            fi
+            if [ -d "$HOME/bllvm-consensus" ]; then
+              ln -sf "$HOME/bllvm-consensus" "../bllvm-consensus"
+              echo "   ✅ Recreated symlink: ../bllvm-consensus -> $HOME/bllvm-consensus"
+            else
+              echo "   ❌ $HOME/bllvm-consensus does not exist"
+              exit 1
+            fi
+          fi
+          if [ ! -f "../bllvm-node/Cargo.toml" ]; then
+            echo "❌ CRITICAL: ../bllvm-node/Cargo.toml not accessible"
+            if [ -L "../bllvm-node" ]; then
+              echo "   Symlink exists but may be broken: $(readlink "../bllvm-node")"
+              rm -f "../bllvm-node"
+            fi
+            if [ -d "$HOME/bllvm-node" ]; then
+              ln -sf "$HOME/bllvm-node" "../bllvm-node"
+              echo "   ✅ Recreated symlink: ../bllvm-node -> $HOME/bllvm-node"
+            else
+              echo "   ❌ $HOME/bllvm-node does not exist"
+              exit 1
+            fi
+          fi
+          echo "✅ Path dependencies verified"
+          
           # Explicitly export paths BEFORE running any scripts
           export CORE_PATH="$CORE_PATH"
           export COMMONS_CONSENSUS_PATH="$COMMONS_CONSENSUS_PATH"
