@@ -618,10 +618,17 @@ echo ""
 echo "Collecting codebase metrics..."
 CODEBASE_METRICS="{}"
 
-# Look for metrics JSON files
-METRICS_FILES=$(find "$OUTPUT_DIR" -name "metrics-*.json" -type f 2>/dev/null | sort)
+# Look for metrics JSON files in suite directory and results root
+# Search both the suite directory and the results root for maximum coverage
+METRICS_SEARCH_DIRS="$OUTPUT_DIR"
+if [ -n "$LATEST_SUITE" ] && [ "$LATEST_SUITE" != "$OUTPUT_DIR" ]; then
+    METRICS_SEARCH_DIRS="$METRICS_SEARCH_DIRS $LATEST_SUITE"
+fi
+
+METRICS_FILES=$(find $METRICS_SEARCH_DIRS -name "metrics-*.json" -type f 2>/dev/null | sort)
 if [ -n "$METRICS_FILES" ]; then
     echo "Found $(echo "$METRICS_FILES" | wc -l) metrics file(s)"
+    echo "Searching in: $METRICS_SEARCH_DIRS"
     
     # Combine all metrics into one structure
     for metrics_file in $METRICS_FILES; do

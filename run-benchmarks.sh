@@ -325,30 +325,34 @@ if [ "${COLLECT_METRICS:-false}" = "true" ] || [ "${BENCH_SUITE}" = "all" ]; the
     echo "Collecting Codebase Metrics"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
+    # Use suite directory if available, otherwise fall back to RESULTS_DIR
+    METRICS_OUTPUT_DIR="${SUITE_DIR:-$RESULTS_DIR}"
+    echo "Metrics output directory: $METRICS_OUTPUT_DIR"
+    
     if [ -f "scripts/metrics/code-size.sh" ]; then
         echo "Running code size metrics..."
-        ./scripts/metrics/code-size.sh "$RESULTS_DIR" || echo "⚠️  Code size metrics failed"
+        ./scripts/metrics/code-size.sh "$METRICS_OUTPUT_DIR" || echo "⚠️  Code size metrics failed"
     fi
     
     if [ -f "scripts/metrics/features.sh" ]; then
         echo "Running feature flags analysis..."
-        ./scripts/metrics/features.sh "$RESULTS_DIR" || echo "⚠️  Feature flags analysis failed"
+        ./scripts/metrics/features.sh "$METRICS_OUTPUT_DIR" || echo "⚠️  Feature flags analysis failed"
     fi
     
     if [ -f "scripts/metrics/tests.sh" ]; then
         echo "Running test metrics..."
-        ./scripts/metrics/tests.sh "$RESULTS_DIR" || echo "⚠️  Test metrics failed"
+        ./scripts/metrics/tests.sh "$METRICS_OUTPUT_DIR" || echo "⚠️  Test metrics failed"
     fi
     
     # Phase 2: Combined views
     if [ -f "scripts/metrics/combined-view.sh" ]; then
         echo "Generating combined view..."
-        ./scripts/metrics/combined-view.sh "$RESULTS_DIR" || echo "⚠️  Combined view failed"
+        ./scripts/metrics/combined-view.sh "$METRICS_OUTPUT_DIR" || echo "⚠️  Combined view failed"
     fi
     
     if [ -f "scripts/metrics/full-view.sh" ]; then
         echo "Generating full view..."
-        ./scripts/metrics/full-view.sh "$RESULTS_DIR" || echo "⚠️  Full view failed"
+        ./scripts/metrics/full-view.sh "$METRICS_OUTPUT_DIR" || echo "⚠️  Full view failed"
     fi
     
     echo "✅ Codebase metrics collection complete"
