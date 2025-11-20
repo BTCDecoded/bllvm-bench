@@ -733,10 +733,13 @@ jobs:
             exit 1
           fi
           
-          echo "json_file=$LATEST_JSON" >> $GITHUB_OUTPUT
-          echo "✅ Found valid consolidated JSON: $LATEST_JSON"
+          # Use absolute path for the release file
+          ABS_JSON=$(cd "$(dirname "$LATEST_JSON")" && pwd)/$(basename "$LATEST_JSON")
+          echo "json_file=$ABS_JSON" >> $GITHUB_OUTPUT
+          echo "✅ Found valid consolidated JSON: $ABS_JSON"
           echo "   Core benchmarks: $BENCH_COUNT"
           echo "   Commons benchmarks: $COMMONS_COUNT"
+          echo "   File size: $(wc -c < "$LATEST_JSON") bytes"
 
       - name: Archive old releases (if any)
         run: |
