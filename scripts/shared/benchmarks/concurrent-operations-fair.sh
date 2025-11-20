@@ -228,13 +228,20 @@ else
             fi
             # Run RPC server in background (example expects address as first arg: 127.0.0.1:PORT)
             # The example parses args[1] as SocketAddr, default is 127.0.0.1:18332
+            # Note: RpcManager::new() creates a basic server without dependencies
+            # It should start even without storage/mempool (just won't handle all RPC methods)
+            echo "  Building and starting RPC server..."
+            cd "$COMMONS_NODE_PATH"
             RUSTFLAGS="-C target-cpu=native" cargo run --example rpc_server_bench --features production -- "127.0.0.1:$COMMONS_RPC_PORT" > /tmp/commons-rpc-server.log 2>&1 &
             COMMONS_RPC_PID=$!
             echo "  Commons RPC server started (PID: $COMMONS_RPC_PID)"
             echo "  Log: /tmp/commons-rpc-server.log"
             
-            # Wait for server to be ready (up to 30 seconds)
-            for i in {1..30}; do
+            # Give server time to compile and start (Rust compilation can take time)
+            echo "  Waiting for server to compile and start (this may take 30-60 seconds)..."
+            
+            # Wait for server to be ready (up to 60 seconds - compilation takes time)
+            for i in {1..60}; do
                 if curl -s --connect-timeout 1 -X POST \
                     -H "Content-Type: application/json" \
                     -d '{"jsonrpc":"2.0","method":"ping","params":[],"id":1}' \
@@ -243,8 +250,13 @@ else
                     COMMONS_RPC_AVAILABLE=true
                     break
                 fi
-                if [ $((i % 5)) -eq 0 ]; then
-                    echo "  Waiting for server... ($i/30)"
+                if [ $((i % 10)) -eq 0 ]; then
+                    echo "  Waiting for server... ($i/60)"
+                    # Show last few lines of log for debugging
+                    if [ -f /tmp/commons-rpc-server.log ]; then
+                        echo "  Recent log output:"
+                        tail -3 /tmp/commons-rpc-server.log | sed 's/^/    /' || true
+                    fi
                 fi
                 sleep 1
             done
@@ -253,8 +265,18 @@ else
             if [ "$COMMONS_RPC_AVAILABLE" = "false" ]; then
                 echo "⚠️  Commons RPC server failed to start or is not responding"
                 echo "  Check log: /tmp/commons-rpc-server.log"
-                if [ -n "$COMMONS_RPC_PID" ]; then
-                    kill "$COMMONS_RPC_PID" 2>/dev/null || true
+                if [ -f /tmp/commons-rpc-server.log ]; then
+                    echo "  Last 20 lines of log:"
+                    tail -20 /tmp/commons-rpc-server.log | sed 's/^/    /' || true
+                fi
+                # Check if process is still running
+                if [ -n "$COMMONS_RPC_PID" ] && kill -0 "$COMMONS_RPC_PID" 2>/dev/null; then
+                    echo "  Process is still running (PID: $COMMONS_RPC_PID) - may still be compiling"
+                else
+                    echo "  Process is not running - check compilation errors in log"
+                    if [ -n "$COMMONS_RPC_PID" ]; then
+                        kill "$COMMONS_RPC_PID" 2>/dev/null || true
+                    fi
                 fi
             fi
         else

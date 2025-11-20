@@ -96,7 +96,12 @@ jobs:
           # Clone to both $HOME (for path discovery) and relative to bllvm-bench (for Cargo.toml)
           CONSENSUS_DIR="$HOME/bllvm-consensus"
           BENCH_ROOT="$(pwd)"
+          # Cargo.toml expects ../bllvm-consensus relative to bllvm-bench root
+          # Workflow runs from bllvm-bench root, so ../bllvm-consensus is correct
           RELATIVE_CONSENSUS_DIR="$BENCH_ROOT/../bllvm-consensus"
+          
+          # Ensure parent directory exists
+          mkdir -p "$(dirname "$RELATIVE_CONSENSUS_DIR")"
           
           if [ ! -d "$CONSENSUS_DIR" ]; then
             echo "Cloning Bitcoin Commons (bllvm-consensus) to $CONSENSUS_DIR..."
@@ -109,13 +114,31 @@ jobs:
           fi
           
           # Also create symlink or copy for Cargo.toml path dependency
-          if [ ! -d "$RELATIVE_CONSENSUS_DIR" ]; then
+          if [ ! -d "$RELATIVE_CONSENSUS_DIR" ] && [ ! -L "$RELATIVE_CONSENSUS_DIR" ]; then
             echo "Creating symlink for Cargo.toml path dependency..."
+            echo "  From: $CONSENSUS_DIR"
+            echo "  To: $RELATIVE_CONSENSUS_DIR"
             mkdir -p "$(dirname "$RELATIVE_CONSENSUS_DIR")"
-            ln -s "$CONSENSUS_DIR" "$RELATIVE_CONSENSUS_DIR" || {
+            # Use absolute path for symlink target
+            ln -sf "$(cd "$CONSENSUS_DIR" && pwd)" "$RELATIVE_CONSENSUS_DIR" || {
               echo "⚠️  Symlink failed, trying copy..."
-              cp -r "$CONSENSUS_DIR" "$RELATIVE_CONSENSUS_DIR" || echo "⚠️  Copy also failed"
+              cp -r "$CONSENSUS_DIR" "$RELATIVE_CONSENSUS_DIR" || {
+                echo "❌ Copy also failed"
+                exit 1
+              }
             }
+            echo "✅ Path dependency created: $RELATIVE_CONSENSUS_DIR"
+          elif [ -L "$RELATIVE_CONSENSUS_DIR" ]; then
+            echo "✅ Symlink already exists: $RELATIVE_CONSENSUS_DIR -> $(readlink "$RELATIVE_CONSENSUS_DIR")"
+          else
+            echo "✅ Path dependency already exists: $RELATIVE_CONSENSUS_DIR"
+          fi
+          
+          # Verify it's accessible
+          if [ ! -f "$RELATIVE_CONSENSUS_DIR/Cargo.toml" ]; then
+            echo "❌ ERROR: Cargo.toml not found at $RELATIVE_CONSENSUS_DIR/Cargo.toml"
+            echo "   This will cause Commons benchmarks to fail!"
+            exit 1
           fi
           
           # Setup Commons node
@@ -133,13 +156,30 @@ jobs:
           fi
           
           # Also create symlink for Cargo.toml path dependency
-          if [ ! -d "$RELATIVE_NODE_DIR" ]; then
+          if [ ! -d "$RELATIVE_NODE_DIR" ] && [ ! -L "$RELATIVE_NODE_DIR" ]; then
             echo "Creating symlink for Cargo.toml path dependency..."
+            echo "  From: $NODE_DIR"
+            echo "  To: $RELATIVE_NODE_DIR"
             mkdir -p "$(dirname "$RELATIVE_NODE_DIR")"
-            ln -s "$NODE_DIR" "$RELATIVE_NODE_DIR" || {
+            # Use absolute path for symlink target
+            ln -sf "$(cd "$NODE_DIR" && pwd)" "$RELATIVE_NODE_DIR" || {
               echo "⚠️  Symlink failed, trying copy..."
-              cp -r "$NODE_DIR" "$RELATIVE_NODE_DIR" || echo "⚠️  Copy also failed"
+              cp -r "$NODE_DIR" "$RELATIVE_NODE_DIR" || {
+                echo "❌ Copy also failed"
+                exit 1
+              }
             }
+            echo "✅ Path dependency created: $RELATIVE_NODE_DIR"
+          elif [ -L "$RELATIVE_NODE_DIR" ]; then
+            echo "✅ Symlink already exists: $RELATIVE_NODE_DIR -> $(readlink "$RELATIVE_NODE_DIR")"
+          else
+            echo "✅ Path dependency already exists: $RELATIVE_NODE_DIR"
+          fi
+          
+          # Verify it's accessible
+          if [ ! -f "$RELATIVE_NODE_DIR/Cargo.toml" ]; then
+            echo "❌ ERROR: Cargo.toml not found at $RELATIVE_NODE_DIR/Cargo.toml"
+            exit 1
           fi
           
           # Setup Commons protocol (needed for bllvm-bench Cargo.toml)
@@ -156,13 +196,25 @@ jobs:
           fi
           
           # Also create symlink for Cargo.toml path dependency
-          if [ ! -d "$RELATIVE_PROTOCOL_DIR" ] && [ -d "$PROTOCOL_DIR" ]; then
+          if [ ! -d "$RELATIVE_PROTOCOL_DIR" ] && [ ! -L "$RELATIVE_PROTOCOL_DIR" ] && [ -d "$PROTOCOL_DIR" ]; then
             echo "Creating symlink for bllvm-protocol Cargo.toml path dependency..."
+            echo "  From: $PROTOCOL_DIR"
+            echo "  To: $RELATIVE_PROTOCOL_DIR"
             mkdir -p "$(dirname "$RELATIVE_PROTOCOL_DIR")"
-            ln -s "$PROTOCOL_DIR" "$RELATIVE_PROTOCOL_DIR" || {
+            # Use absolute path for symlink target
+            ln -sf "$(cd "$PROTOCOL_DIR" && pwd)" "$RELATIVE_PROTOCOL_DIR" || {
               echo "⚠️  Symlink failed, trying copy..."
-              cp -r "$PROTOCOL_DIR" "$RELATIVE_PROTOCOL_DIR" || echo "⚠️  Copy also failed"
+              cp -r "$PROTOCOL_DIR" "$RELATIVE_PROTOCOL_DIR" || {
+                echo "⚠️  Copy also failed (protocol may not be required)"
+              }
             }
+            if [ -f "$RELATIVE_PROTOCOL_DIR/Cargo.toml" ]; then
+              echo "✅ Path dependency created: $RELATIVE_PROTOCOL_DIR"
+            fi
+          elif [ -L "$RELATIVE_PROTOCOL_DIR" ]; then
+            echo "✅ Symlink already exists: $RELATIVE_PROTOCOL_DIR -> $(readlink "$RELATIVE_PROTOCOL_DIR")"
+          elif [ -d "$RELATIVE_PROTOCOL_DIR" ]; then
+            echo "✅ Path dependency already exists: $RELATIVE_PROTOCOL_DIR"
           fi
           
           # Verify directories exist
