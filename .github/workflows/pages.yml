@@ -8,6 +8,10 @@ on:
       - 'docs/**'
       - '.nojekyll'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Run Benchmarks"]
+    types:
+      - completed
 
 permissions:
   contents: read

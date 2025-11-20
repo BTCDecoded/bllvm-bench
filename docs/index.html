@@ -620,21 +620,47 @@
             const failedBenchmarks = [];
             
             console.log(`Processing ${allBenchmarks.length} benchmarks...`);
+            console.log('Sample benchmark structure:', allBenchmarks[0]);
             
             for (const bench of allBenchmarks) {
+                // Log first few benchmarks for debugging
+                if (allBenchmarks.indexOf(bench) < 3) {
+                    console.log(`Benchmark ${bench.name}:`, {
+                        hasCore: !!bench.core,
+                        hasCommons: !!bench.commons,
+                        coreKeys: bench.core ? Object.keys(bench.core) : [],
+                        commonsKeys: bench.commons ? Object.keys(bench.commons) : []
+                    });
+                }
+                
                 const hasError = bench.commons?.error || bench.core?.error || bench.error;
                 if (hasError) {
                     failedBenchmarks.push(bench);
                     continue;
                 }
                 
-                // More lenient check - just verify the object exists and isn't empty/null
+                // More lenient check - accept any non-empty object
                 const hasCore = bench.core && typeof bench.core === 'object' && 
+                    bench.core !== null &&
                     !bench.core.error && 
-                    (Object.keys(bench.core).length > 0 || bench.core.benchmarks || bench.core.time_ms || bench.core.time_ns);
+                    (Object.keys(bench.core).length > 0 || 
+                     Array.isArray(bench.core.benchmarks) || 
+                     bench.core.time_ms || 
+                     bench.core.time_ns ||
+                     bench.core.time ||
+                     bench.core.median ||
+                     bench.core.mean);
+                
                 const hasCommons = bench.commons && typeof bench.commons === 'object' && 
+                    bench.commons !== null &&
                     !bench.commons.error && 
-                    (Object.keys(bench.commons).length > 0 || bench.commons.benchmarks || bench.commons.time_ms || bench.commons.time_ns);
+                    (Object.keys(bench.commons).length > 0 || 
+                     Array.isArray(bench.commons.benchmarks) || 
+                     bench.commons.time_ms || 
+                     bench.commons.time_ns ||
+                     bench.commons.time ||
+                     bench.commons.median ||
+                     bench.commons.mean);
                 
                 if (hasCore && hasCommons) {
                     comparisonBenchmarks.push(bench);
@@ -644,7 +670,11 @@
                     coreOnlyBenchmarks.push(bench);
                 } else {
                     // Benchmarks with no data at all - log for debugging
-                    console.warn(`Benchmark ${bench.name} has no valid data:`, bench);
+                    console.warn(`Benchmark ${bench.name} has no valid data:`, {
+                        core: bench.core,
+                        commons: bench.commons,
+                        full: bench
+                    });
                 }
             }
             
