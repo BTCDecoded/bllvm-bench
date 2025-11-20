@@ -636,6 +636,12 @@ jobs:
           BENCH_SUITE="${{ github.event.inputs.suite || 'all' }}"
           echo "🚀 Running benchmark suite: $BENCH_SUITE"
           
+          # Enable metrics collection for 'all' suite or if explicitly requested
+          if [ "$BENCH_SUITE" = "all" ] || [ "${COLLECT_METRICS:-false}" = "true" ]; then
+            export COLLECT_METRICS=true
+            echo "📊 Codebase metrics collection enabled"
+          fi
+          
           # Run selected benchmark suite
           ./run-benchmarks.sh "$BENCH_SUITE" 600
           
