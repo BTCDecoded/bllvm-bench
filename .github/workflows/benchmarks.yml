@@ -740,6 +740,13 @@ jobs:
           echo "   Core benchmarks: $BENCH_COUNT"
           echo "   Commons benchmarks: $COMMONS_COUNT"
           echo "   File size: $(wc -c < "$LATEST_JSON") bytes"
+          echo ""
+          echo "DEBUG: GITHUB_OUTPUT contents:"
+          cat $GITHUB_OUTPUT | grep json_file || echo "  (json_file not found in GITHUB_OUTPUT)"
+          echo ""
+          echo "DEBUG: Verifying file exists and is readable:"
+          ls -lh "$ABS_JSON" || echo "  File not found at absolute path"
+          test -r "$ABS_JSON" && echo "  ✅ File is readable" || echo "  ❌ File is not readable"
 
       - name: Archive old releases (if any)
         run: |
@@ -802,12 +809,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      - name: Debug release step
+        run: |
+          echo "DEBUG: Checking if release step should run..."
+          echo "  Previous step success: ${{ job.status }}"
+          echo "  find_json.outputs.json_file: '${{ steps.find_json.outputs.json_file }}'"
+          echo "  json_file length: $(echo -n '${{ steps.find_json.outputs.json_file }}' | wc -c)"
+          if [ -n "${{ steps.find_json.outputs.json_file }}" ]; then
+            echo "  ✅ json_file is set"
+            if [ -f "${{ steps.find_json.outputs.json_file }}" ]; then
+              echo "  ✅ File exists at path"
+              ls -lh "${{ steps.find_json.outputs.json_file }}"
+            else
+              echo "  ❌ File does NOT exist at path"
+            fi
+          else
+            echo "  ❌ json_file is empty or not set"
+          fi
+        continue-on-error: true
+
       - name: Create or Update Release (benchmarks-latest)
         # Only create release if:
         # 1. All previous steps succeeded
         # 2. JSON file was found
-        # Always create for scheduled/push (they run "all"), or if manual run explicitly selects "all"
-        if: success() && steps.find_json.outputs.json_file != ''
+        if: always() && steps.find_json.outputs.json_file != '' && steps.find_json.outcome == 'success'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: benchmarks-latest
