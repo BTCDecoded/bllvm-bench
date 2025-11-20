@@ -535,17 +535,27 @@
                     const releaseResponse = await fetch(RELEASE_JSON_URL);
                     if (releaseResponse.ok) {
                         const release = await releaseResponse.json();
-                        const jsonAsset = release.assets.find(a => a.name.includes('benchmark-results-consolidated') && a.name.endsWith('.json'));
+                        console.log('Release found:', release.tag_name, 'Assets:', release.assets?.length || 0);
+                        const jsonAsset = release.assets?.find(a => a.name.includes('benchmark-results-consolidated') && a.name.endsWith('.json'));
                         if (jsonAsset) {
+                            console.log('Found JSON asset:', jsonAsset.name, 'Size:', jsonAsset.size, 'bytes');
                             const response = await fetch(jsonAsset.browser_download_url);
                             if (response.ok) {
                                 jsonData = await response.json();
-                                console.log('✅ Loaded from release');
+                                console.log('✅ Loaded from release:', jsonAsset.name);
+                                console.log('Benchmarks in JSON:', Object.keys(jsonData.benchmarks || {}).length);
+                            } else {
+                                console.error('Failed to fetch JSON asset:', response.status, response.statusText);
                             }
+                        } else {
+                            console.warn('No JSON asset found in release. Available assets:', release.assets?.map(a => a.name) || []);
                         }
+                    } else {
+                        console.log('Release not found:', releaseResponse.status, releaseResponse.statusText);
                     }
                 } catch (e) {
-                    console.log('Release not available, trying local...');
+                    console.error('Error loading from release:', e);
+                    console.log('Trying local...');
                 }
                 
                 // Fallback to local
