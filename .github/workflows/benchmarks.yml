@@ -756,22 +756,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Delete old assets from benchmarks-latest release
+      - name: Delete old assets and release (if exists)
         run: |
-          # Delete all existing JSON assets from benchmarks-latest release
-          # This ensures only one JSON file exists per release
+          # Delete the entire release and tag to ensure clean update
+          # This is necessary because softprops/action-gh-release doesn't always update properly
           RELEASE_ID=$(gh release view benchmarks-latest --repo ${{ github.repository }} --json id -q .id 2>/dev/null || echo "")
           
           if [ -n "$RELEASE_ID" ]; then
-            echo "Found existing benchmarks-latest release, deleting old JSON assets..."
-            ASSETS=$(gh release view benchmarks-latest --repo ${{ github.repository }} --json assets -q '.assets[] | select(.name | endswith(".json")) | .id' 2>/dev/null || echo "")
+            echo "Found existing benchmarks-latest release, deleting..."
             
+            # Delete all assets first
+            ASSETS=$(gh release view benchmarks-latest --repo ${{ github.repository }} --json assets -q '.assets[] | select(.name | endswith(".json")) | .id' 2>/dev/null || echo "")
             for asset_id in $ASSETS; do
               echo "Deleting asset ID: $asset_id"
               gh api repos/${{ github.repository }}/releases/assets/$asset_id -X DELETE || echo "⚠️  Failed to delete asset $asset_id"
             done
-          else
-            echo "No existing benchmarks-latest release found (will be created)"
+            
+            # Delete the release
+            gh release delete benchmarks-latest --repo ${{ github.repository }} --yes || echo "⚠️  Failed to delete release"
+          fi
+          
+          # Delete the tag if it exists
+          if git ls-remote --tags origin benchmarks-latest | grep -q benchmarks-latest; then
+            echo "Deleting benchmarks-latest tag..."
+            git push origin :refs/tags/benchmarks-latest || echo "⚠️  Tag deletion failed"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
