@@ -28,7 +28,7 @@ jobs:
   run-benchmarks:
     outputs:
       json_file: ${{ steps.find_json.outputs.json_file }}
-    runs-on: [self-hosted, linux]  # Self-hosted runner required
+    runs-on: [self-hosted, Linux, X64]  # Self-hosted runner required
     
     steps:
       - name: Checkout repository
