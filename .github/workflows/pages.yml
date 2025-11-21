@@ -12,6 +12,8 @@ on:
     workflows: ["Run Benchmarks"]
     types:
       - completed
+    branches:
+      - main
 
 permissions:
   contents: read

@@ -532,32 +532,48 @@
                 
                 // Try release first
                 try {
-                    const releaseResponse = await fetch(RELEASE_JSON_URL);
+                    const releaseResponse = await fetch(RELEASE_JSON_URL + '&_=' + Date.now());
                     if (releaseResponse.ok) {
                         const release = await releaseResponse.json();
-                        console.log('Release found:', release.tag_name, 'Assets:', release.assets?.length || 0);
+                        console.log('Release found:', release.tag_name, 'Published:', release.published_at, 'Assets:', release.assets?.length || 0);
+                        console.log('Release ID:', release.id);
                         const jsonAsset = release.assets?.find(a => a.name.includes('benchmark-results-consolidated') && a.name.endsWith('.json'));
                         if (jsonAsset) {
-                            console.log('Found JSON asset:', jsonAsset.name, 'Size:', jsonAsset.size, 'bytes');
-                            // Add cache-busting query parameter
-                            const assetUrl = jsonAsset.browser_download_url + '?t=' + Date.now();
-                            const response = await fetch(assetUrl);
+                            console.log('Found JSON asset:', jsonAsset.name, 'Size:', jsonAsset.size, 'bytes', 'ID:', jsonAsset.id);
+                            console.log('Asset URL:', jsonAsset.browser_download_url);
+                            // Add cache-busting query parameter with timestamp
+                            const assetUrl = jsonAsset.browser_download_url + '?t=' + Date.now() + '&_=' + release.id;
+                            console.log('Fetching from:', assetUrl);
+                            const response = await fetch(assetUrl, {
+                                cache: 'no-store',
+                                headers: {
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                    'Pragma': 'no-cache',
+                                    'Expires': '0'
+                                }
+                            });
                             if (response.ok) {
                                 jsonData = await response.json();
                                 console.log('✅ Loaded from release:', jsonAsset.name);
                                 console.log('Benchmarks in JSON:', Object.keys(jsonData.benchmarks || {}).length);
-                                console.log('Summary:', jsonData.summary);
+                                console.log('Summary:', JSON.stringify(jsonData.summary, null, 2));
+                                console.log('First few benchmark names:', Object.keys(jsonData.benchmarks || {}).slice(0, 5));
                             } else {
                                 console.error('Failed to fetch JSON asset:', response.status, response.statusText);
+                                const text = await response.text();
+                                console.error('Response body:', text.substring(0, 200));
                             }
                         } else {
                             console.warn('No JSON asset found in release. Available assets:', release.assets?.map(a => a.name) || []);
                         }
                     } else {
                         console.log('Release not found:', releaseResponse.status, releaseResponse.statusText);
+                        const text = await releaseResponse.text();
+                        console.log('Response:', text.substring(0, 200));
                     }
                 } catch (e) {
                     console.error('Error loading from release:', e);
+                    console.error('Stack:', e.stack);
                     console.log('Trying local...');
                 }
                 
