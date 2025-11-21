@@ -556,23 +556,33 @@
                 const assetApiUrl = `https://api.github.com/repos/BTCDecoded/bllvm-bench/releases/assets/${jsonAsset.id}`;
                 console.log('Fetching asset content from:', assetApiUrl);
                 
+                // GitHub API asset endpoint redirects to actual download URL
+                // We need to follow redirects and handle CORS
                 const assetResponse = await fetch(assetApiUrl, {
                     headers: {
                         'Accept': 'application/octet-stream',
                         'Cache-Control': 'no-cache'
-                    }
+                    },
+                    redirect: 'follow'  // Follow redirects
                 });
                 
                 if (assetResponse.ok) {
-                    // The API returns the raw file content
+                    // The API may redirect, but the final response should be the file content
                     const text = await assetResponse.text();
-                    jsonData = JSON.parse(text);
-                    console.log('✅ Loaded from release:', jsonAsset.name);
-                    console.log('Benchmarks in JSON:', Object.keys(jsonData.benchmarks || {}).length);
-                    console.log('Summary:', JSON.stringify(jsonData.summary, null, 2));
-                    console.log('First few benchmark names:', Object.keys(jsonData.benchmarks || {}).slice(0, 5));
+                    try {
+                        jsonData = JSON.parse(text);
+                        console.log('✅ Loaded from release:', jsonAsset.name);
+                        console.log('Benchmarks in JSON:', Object.keys(jsonData.benchmarks || {}).length);
+                        console.log('Summary:', JSON.stringify(jsonData.summary, null, 2));
+                        console.log('First few benchmark names:', Object.keys(jsonData.benchmarks || {}).slice(0, 5));
+                    } catch (parseError) {
+                        console.error('Failed to parse JSON:', parseError);
+                        console.error('Response text (first 500 chars):', text.substring(0, 500));
+                        throw new Error('Invalid JSON in release asset: ' + parseError.message);
+                    }
                 } else {
-                    throw new Error(`Failed to fetch asset: ${assetResponse.status} ${assetResponse.statusText}`);
+                    const errorText = await assetResponse.text().catch(() => '');
+                    throw new Error(`Failed to fetch asset: ${assetResponse.status} ${assetResponse.statusText}. ${errorText.substring(0, 200)}`);
                 }
 
                 if (!jsonData || !jsonData.benchmarks) {

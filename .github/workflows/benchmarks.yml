@@ -29,6 +29,9 @@ jobs:
     outputs:
       json_file: ${{ steps.find_json.outputs.json_file }}
     runs-on: [self-hosted, Linux, X64]  # Self-hosted runner required
+    permissions:
+      contents: write  # Needed to create releases
+      actions: read    # Needed to read workflow status
     
     steps:
       - name: Checkout repository
@@ -872,7 +875,6 @@ jobs:
           name: benchmark-results
           path: |
             results/benchmark-results-consolidated-latest.json
-            docs/data/benchmark-results-consolidated-latest.json
           retention-days: 30
 
   # Deploy GitHub Pages after benchmarks complete and release is created
