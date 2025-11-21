@@ -681,6 +681,21 @@ jobs:
         run: |
           make json
           
+      - name: Ensure JSON is in results root for raw.githubusercontent.com
+        run: |
+          LATEST_JSON="results/benchmark-results-consolidated-latest.json"
+          if [ ! -f "$LATEST_JSON" ]; then
+            LATEST_JSON=$(find results -name "benchmark-results-consolidated-latest.json" -type f | head -1)
+            if [ -f "$LATEST_JSON" ]; then
+              cp "$LATEST_JSON" results/benchmark-results-consolidated-latest.json
+              echo "✅ Copied JSON to results root"
+            fi
+          fi
+          if [ -f "results/benchmark-results-consolidated-latest.json" ]; then
+            echo "✅ JSON available at results/benchmark-results-consolidated-latest.json"
+            ls -lh results/benchmark-results-consolidated-latest.json
+          fi
+          
 
       - name: Validate consolidated JSON
         run: |
