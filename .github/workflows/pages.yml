@@ -61,21 +61,29 @@ jobs:
           echo "Ends with .json test (using test()):"
           echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("\\.json$")) | .name' || echo "  (failed)"
           
+          # Debug: show the full asset structure
+          echo "Debug: Full asset structure for exact match:"
+          echo "$RELEASE_JSON" | jq '.assets[] | select(.name == "benchmark-results-consolidated-latest.json")' || echo "  (failed)"
+          
           # First try exact filename match (most reliable)
           JSON_ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name == "benchmark-results-consolidated-latest.json") | .browser_download_url' | head -1)
-          if [ -n "$JSON_ASSET_URL" ] && [ "$JSON_ASSET_URL" != "null" ]; then
+          echo "Debug: Extracted URL from exact match: '$JSON_ASSET_URL'"
+          
+          if [ -n "$JSON_ASSET_URL" ] && [ "$JSON_ASSET_URL" != "null" ] && [ "$JSON_ASSET_URL" != "" ]; then
             echo "✅ Found JSON asset by exact filename match"
           else
             # If not found, try contains pattern with test() for .json
-            echo "Exact match not found, trying contains pattern..."
+            echo "Exact match URL extraction failed, trying contains pattern..."
             JSON_ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | contains("benchmark-results-consolidated") and test("\\.json$")) | .browser_download_url' | head -1)
-            if [ -n "$JSON_ASSET_URL" ] && [ "$JSON_ASSET_URL" != "null" ]; then
+            echo "Debug: Extracted URL from contains pattern: '$JSON_ASSET_URL'"
+            if [ -n "$JSON_ASSET_URL" ] && [ "$JSON_ASSET_URL" != "null" ] && [ "$JSON_ASSET_URL" != "" ]; then
               echo "✅ Found JSON asset by contains pattern"
             else
               # If still not found, try any .json file using test()
-              echo "Contains pattern not found, trying any .json file..."
+              echo "Contains pattern URL extraction failed, trying any .json file..."
               JSON_ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("\\.json$")) | .browser_download_url' | head -1)
-              if [ -n "$JSON_ASSET_URL" ] && [ "$JSON_ASSET_URL" != "null" ]; then
+              echo "Debug: Extracted URL from .json pattern: '$JSON_ASSET_URL'"
+              if [ -n "$JSON_ASSET_URL" ] && [ "$JSON_ASSET_URL" != "null" ] && [ "$JSON_ASSET_URL" != "" ]; then
                 echo "✅ Found JSON asset by .json pattern"
               fi
             fi
