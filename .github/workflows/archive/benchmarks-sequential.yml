@@ -1,0 +1,908 @@
+name: Run Benchmarks
+
+on:
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      suite:
+        description: 'Benchmark suite to run (all, fair, core, commons)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - fair
+          - core
+          - commons
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/**'
+      - 'benches/**'
+      - '.github/workflows/benchmarks.yml'
+
+jobs:
+  run-benchmarks:
+    outputs:
+      json_file: ${{ steps.find_json.outputs.json_file }}
+    runs-on: [self-hosted, Linux, X64]  # Self-hosted runner required
+    permissions:
+      contents: write  # Needed to create releases
+      actions: read    # Needed to read workflow status
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install system dependencies
+        run: |
+          # Install OpenSSL and pkg-config (required for Rust OpenSSL bindings)
+          # Also install ccache (Rust OpenSSL bindings try to use it)
+          # Install tokei for codebase metrics (if available)
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libssl-dev pkg-config ccache tokei || echo "⚠️  tokei not available via apt"
+          elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y openssl-devel pkgconfig ccache || echo "⚠️  Some packages not available via yum"
+          elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y openssl-devel pkgconfig ccache tokei || echo "⚠️  tokei not available via dnf"
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm openssl pkgconf ccache tokei || echo "⚠️  tokei not available via pacman"
+          elif command -v apk >/dev/null 2>&1; then
+            sudo apk add openssl-dev pkgconfig ccache || echo "⚠️  Some packages not available via apk"
+          else
+            echo "⚠️  Unknown package manager, skipping system dependency installation"
+            echo "   You may need to install libssl-dev, pkg-config, and ccache manually"
+          fi
+          
+          # Install tokei via cargo if not available via package manager
+          if ! command -v tokei >/dev/null 2>&1; then
+            if command -v cargo >/dev/null 2>&1; then
+              echo "Installing tokei via cargo..."
+              cargo install tokei --locked || echo "⚠️  Failed to install tokei via cargo"
+            else
+              echo "⚠️  tokei not available and cargo not found"
+            fi
+          fi
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Setup dependencies (Core and Commons)
+        id: setup
+        run: |
+          echo "Setting up Bitcoin Core and Bitcoin Commons..."
+          
+          # Setup Core
+          CORE_DIR="$HOME/bitcoin-core"
+          if [ ! -d "$CORE_DIR" ]; then
+            echo "Cloning Bitcoin Core to $CORE_DIR..."
+            git clone --depth 1 https://github.com/bitcoin/bitcoin.git "$CORE_DIR" || {
+              echo "❌ Failed to clone Core"
+              exit 1
+            }
+          else
+            echo "✅ Bitcoin Core already exists at $CORE_DIR"
+          fi
+          
+          # Setup Commons consensus
+          # Clone to both $HOME (for path discovery) and relative to bllvm-bench (for Cargo.toml)
+          CONSENSUS_DIR="$HOME/bllvm-consensus"
+          BENCH_ROOT="$(pwd)"
+          # Cargo.toml expects ../bllvm-consensus relative to bllvm-bench root
+          # Workflow runs from bllvm-bench root, so ../bllvm-consensus is correct
+          RELATIVE_CONSENSUS_DIR="$BENCH_ROOT/../bllvm-consensus"
+          
+          # Ensure parent directory exists
+          mkdir -p "$(dirname "$RELATIVE_CONSENSUS_DIR")"
+          
+          if [ ! -d "$CONSENSUS_DIR" ]; then
+            echo "Cloning Bitcoin Commons (bllvm-consensus) to $CONSENSUS_DIR..."
+            git clone --depth 1 https://github.com/BTCDecoded/bllvm-consensus.git "$CONSENSUS_DIR" || {
+              echo "❌ Failed to clone bllvm-consensus"
+              exit 1
+            }
+          else
+            echo "✅ bllvm-consensus already exists at $CONSENSUS_DIR"
+          fi
+          
+          # Also create symlink or copy for Cargo.toml path dependency
+          if [ ! -d "$RELATIVE_CONSENSUS_DIR" ] && [ ! -L "$RELATIVE_CONSENSUS_DIR" ]; then
+            echo "Creating symlink for Cargo.toml path dependency..."
+            echo "  From: $CONSENSUS_DIR"
+            echo "  To: $RELATIVE_CONSENSUS_DIR"
+            mkdir -p "$(dirname "$RELATIVE_CONSENSUS_DIR")"
+            # Use absolute path for symlink target
+            ln -sf "$(cd "$CONSENSUS_DIR" && pwd)" "$RELATIVE_CONSENSUS_DIR" || {
+              echo "⚠️  Symlink failed, trying copy..."
+              cp -r "$CONSENSUS_DIR" "$RELATIVE_CONSENSUS_DIR" || {
+                echo "❌ Copy also failed"
+                exit 1
+              }
+            }
+            echo "✅ Path dependency created: $RELATIVE_CONSENSUS_DIR"
+          elif [ -L "$RELATIVE_CONSENSUS_DIR" ]; then
+            echo "✅ Symlink already exists: $RELATIVE_CONSENSUS_DIR -> $(readlink "$RELATIVE_CONSENSUS_DIR")"
+          else
+            echo "✅ Path dependency already exists: $RELATIVE_CONSENSUS_DIR"
+          fi
+          
+          # Verify it's accessible (follow symlink)
+          if [ ! -f "$RELATIVE_CONSENSUS_DIR/Cargo.toml" ]; then
+            echo "❌ ERROR: Cargo.toml not found at $RELATIVE_CONSENSUS_DIR/Cargo.toml"
+            echo "   Checking symlink..."
+            if [ -L "$RELATIVE_CONSENSUS_DIR" ]; then
+              echo "   Symlink target: $(readlink -f "$RELATIVE_CONSENSUS_DIR")"
+              if [ -f "$(readlink -f "$RELATIVE_CONSENSUS_DIR")/Cargo.toml" ]; then
+                echo "   ✅ Cargo.toml exists at symlink target"
+              else
+                echo "   ❌ Cargo.toml NOT found at symlink target"
+                exit 1
+              fi
+            else
+              echo "   This will cause Commons benchmarks to fail!"
+              exit 1
+            fi
+          fi
+          
+          # Double-check: verify from bllvm-bench directory that cargo can see it
+          echo "Verifying path dependency from bllvm-bench directory..."
+          cd "$BENCH_ROOT"
+          if [ ! -f "../bllvm-consensus/Cargo.toml" ]; then
+            echo "❌ ERROR: Cannot access ../bllvm-consensus/Cargo.toml from bllvm-bench root"
+            echo "   Current directory: $(pwd)"
+            echo "   Expected path: $(pwd)/../bllvm-consensus/Cargo.toml"
+            ls -la .. | grep bllvm || echo "   No bllvm-* directories found in parent"
+            exit 1
+          fi
+          echo "✅ Path dependency verified from bllvm-bench root"
+          
+          # Setup Commons node
+          NODE_DIR="$HOME/bllvm-node"
+          RELATIVE_NODE_DIR="$BENCH_ROOT/../bllvm-node"
+          
+          if [ ! -d "$NODE_DIR" ]; then
+            echo "Cloning Bitcoin Commons (bllvm-node) to $NODE_DIR..."
+            git clone --depth 1 https://github.com/BTCDecoded/bllvm-node.git "$NODE_DIR" || {
+              echo "❌ Failed to clone bllvm-node"
+              exit 1
+            }
+          else
+            echo "✅ bllvm-node already exists at $NODE_DIR"
+          fi
+          
+          # Also create symlink for Cargo.toml path dependency
+          if [ ! -d "$RELATIVE_NODE_DIR" ] && [ ! -L "$RELATIVE_NODE_DIR" ]; then
+            echo "Creating symlink for Cargo.toml path dependency..."
+            echo "  From: $NODE_DIR"
+            echo "  To: $RELATIVE_NODE_DIR"
+            mkdir -p "$(dirname "$RELATIVE_NODE_DIR")"
+            # Use absolute path for symlink target
+            ln -sf "$(cd "$NODE_DIR" && pwd)" "$RELATIVE_NODE_DIR" || {
+              echo "⚠️  Symlink failed, trying copy..."
+              cp -r "$NODE_DIR" "$RELATIVE_NODE_DIR" || {
+                echo "❌ Copy also failed"
+                exit 1
+              }
+            }
+            echo "✅ Path dependency created: $RELATIVE_NODE_DIR"
+          elif [ -L "$RELATIVE_NODE_DIR" ]; then
+            echo "✅ Symlink already exists: $RELATIVE_NODE_DIR -> $(readlink "$RELATIVE_NODE_DIR")"
+          else
+            echo "✅ Path dependency already exists: $RELATIVE_NODE_DIR"
+          fi
+          
+          # Verify it's accessible (follow symlink)
+          if [ ! -f "$RELATIVE_NODE_DIR/Cargo.toml" ]; then
+            echo "❌ ERROR: Cargo.toml not found at $RELATIVE_NODE_DIR/Cargo.toml"
+            if [ -L "$RELATIVE_NODE_DIR" ]; then
+              echo "   Symlink target: $(readlink -f "$RELATIVE_NODE_DIR")"
+              if [ -f "$(readlink -f "$RELATIVE_NODE_DIR")/Cargo.toml" ]; then
+                echo "   ✅ Cargo.toml exists at symlink target"
+              else
+                echo "   ❌ Cargo.toml NOT found at symlink target"
+                exit 1
+              fi
+            else
+              exit 1
+            fi
+          fi
+          
+          # Double-check from bllvm-bench directory
+          cd "$BENCH_ROOT"
+          if [ ! -f "../bllvm-node/Cargo.toml" ]; then
+            echo "❌ ERROR: Cannot access ../bllvm-node/Cargo.toml from bllvm-bench root"
+            exit 1
+          fi
+          
+          # Setup Commons protocol (needed for bllvm-bench Cargo.toml)
+          PROTOCOL_DIR="$HOME/bllvm-protocol"
+          RELATIVE_PROTOCOL_DIR="$BENCH_ROOT/../bllvm-protocol"
+          
+          if [ ! -d "$PROTOCOL_DIR" ]; then
+            echo "Cloning Bitcoin Commons (bllvm-protocol) to $PROTOCOL_DIR..."
+            git clone --depth 1 https://github.com/BTCDecoded/bllvm-protocol.git "$PROTOCOL_DIR" || {
+              echo "⚠️  Failed to clone bllvm-protocol (may not be needed)"
+            }
+          else
+            echo "✅ bllvm-protocol already exists at $PROTOCOL_DIR"
+          fi
+          
+          # Also create symlink for Cargo.toml path dependency
+          if [ ! -d "$RELATIVE_PROTOCOL_DIR" ] && [ ! -L "$RELATIVE_PROTOCOL_DIR" ] && [ -d "$PROTOCOL_DIR" ]; then
+            echo "Creating symlink for bllvm-protocol Cargo.toml path dependency..."
+            echo "  From: $PROTOCOL_DIR"
+            echo "  To: $RELATIVE_PROTOCOL_DIR"
+            mkdir -p "$(dirname "$RELATIVE_PROTOCOL_DIR")"
+            # Use absolute path for symlink target
+            ln -sf "$(cd "$PROTOCOL_DIR" && pwd)" "$RELATIVE_PROTOCOL_DIR" || {
+              echo "⚠️  Symlink failed, trying copy..."
+              cp -r "$PROTOCOL_DIR" "$RELATIVE_PROTOCOL_DIR" || {
+                echo "⚠️  Copy also failed (protocol may not be required)"
+              }
+            }
+            if [ -f "$RELATIVE_PROTOCOL_DIR/Cargo.toml" ]; then
+              echo "✅ Path dependency created: $RELATIVE_PROTOCOL_DIR"
+            fi
+          elif [ -L "$RELATIVE_PROTOCOL_DIR" ]; then
+            echo "✅ Symlink already exists: $RELATIVE_PROTOCOL_DIR -> $(readlink "$RELATIVE_PROTOCOL_DIR")"
+          elif [ -d "$RELATIVE_PROTOCOL_DIR" ]; then
+            echo "✅ Path dependency already exists: $RELATIVE_PROTOCOL_DIR"
+          fi
+          
+          # Verify directories exist
+          if [ ! -d "$CORE_DIR" ]; then
+            echo "❌ Core directory does not exist: $CORE_DIR"
+            exit 1
+          fi
+          if [ ! -d "$CONSENSUS_DIR" ]; then
+            echo "❌ Consensus directory does not exist: $CONSENSUS_DIR"
+            exit 1
+          fi
+          if [ ! -d "$NODE_DIR" ]; then
+            echo "❌ Node directory does not exist: $NODE_DIR"
+            exit 1
+          fi
+          
+          # Verify symlinks for Cargo.toml
+          if [ ! -d "$RELATIVE_CONSENSUS_DIR" ]; then
+            echo "⚠️  Warning: Cargo.toml path dependency not found: $RELATIVE_CONSENSUS_DIR"
+            echo "   Commons benchmarks may fail to compile"
+          else
+            echo "✅ Cargo.toml path dependency found: $RELATIVE_CONSENSUS_DIR"
+          fi
+          if [ ! -d "$RELATIVE_NODE_DIR" ]; then
+            echo "⚠️  Warning: Cargo.toml path dependency not found: $RELATIVE_NODE_DIR"
+          else
+            echo "✅ Cargo.toml path dependency found: $RELATIVE_NODE_DIR"
+          fi
+          
+          # Create config.toml with absolute paths
+          mkdir -p config
+          {
+            echo "[paths]"
+            echo "core_path = \"$CORE_DIR\""
+            echo "commons_consensus_path = \"$CONSENSUS_DIR\""
+            echo "commons_node_path = \"$NODE_DIR\""
+          } > config/config.toml
+          echo "✅ Created config/config.toml"
+          echo "Config contents:"
+          cat config/config.toml
+          
+          # Export paths for this step
+          echo "core_path=$CORE_DIR" >> $GITHUB_OUTPUT
+          echo "commons_consensus_path=$CONSENSUS_DIR" >> $GITHUB_OUTPUT
+          echo "commons_node_path=$NODE_DIR" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "✅ Setup complete:"
+          echo "  CORE_PATH: $CORE_DIR"
+          echo "  COMMONS_CONSENSUS_PATH: $CONSENSUS_DIR"
+          echo "  COMMONS_NODE_PATH: $NODE_DIR"
+
+      - name: Build Bitcoin Core (bench_bitcoin)
+        run: |
+          CORE_PATH="${{ steps.setup.outputs.core_path }}"
+          echo "Building Bitcoin Core with benchmarks enabled..."
+          echo "CORE_PATH: $CORE_PATH"
+          
+          if [ ! -d "$CORE_PATH" ]; then
+            echo "❌ CORE_PATH does not exist: $CORE_PATH"
+            exit 1
+          fi
+          
+          cd "$CORE_PATH"
+          
+          # Handle ccache properly - CMake needs the real compiler, not ccache
+          # If CC/CXX are set to ccache, we need to find the real compiler
+          REAL_CXX=""
+          REAL_CC=""
+          
+          # Check if CC/CXX point to ccache
+          if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+            echo "⚠️  CC is set to ccache, finding real compiler..."
+            # Find real C compiler
+            if command -v gcc >/dev/null 2>&1; then
+              REAL_CC=$(command -v gcc)
+            elif command -v clang >/dev/null 2>&1; then
+              REAL_CC=$(command -v clang)
+            fi
+          fi
+          
+          if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+            echo "⚠️  CXX is set to ccache, finding real compiler..."
+            # Find real C++ compiler
+            if command -v g++ >/dev/null 2>&1; then
+              REAL_CXX=$(command -v g++)
+            elif command -v clang++ >/dev/null 2>&1; then
+              REAL_CXX=$(command -v clang++)
+            fi
+          fi
+          
+          # If we found real compilers, use them with ccache as launcher
+          if [ -n "$REAL_CXX" ] || [ -n "$REAL_CC" ]; then
+            echo "Using real compilers with ccache launcher:"
+            if [ -n "$REAL_CC" ]; then
+              echo "  C compiler: $REAL_CC"
+            fi
+            if [ -n "$REAL_CXX" ]; then
+              echo "  C++ compiler: $REAL_CXX"
+            fi
+          else
+            # Let CMake find compilers, but unset CC/CXX if they point to ccache
+            if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+              echo "Unsetting CC (was ccache)"
+              unset CC
+            fi
+            if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+              echo "Unsetting CXX (was ccache)"
+              unset CXX
+            fi
+          fi
+          
+          # Build with CMake (modern Core)
+          echo "Configuring with CMake..."
+          CMAKE_ARGS=(
+            -B build
+            -DCMAKE_BUILD_TYPE=Release
+            -DBUILD_BENCH=ON
+            -DENABLE_WALLET=OFF
+            -DBUILD_GUI=OFF
+            -DENABLE_IPC=OFF
+          )
+          
+          # Add compiler settings if we found real compilers
+          if [ -n "$REAL_CXX" ]; then
+            CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER="$REAL_CXX")
+            if command -v ccache >/dev/null 2>&1; then
+              CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER_LAUNCHER="ccache")
+            fi
+          fi
+          if [ -n "$REAL_CC" ]; then
+            CMAKE_ARGS+=(-DCMAKE_C_COMPILER="$REAL_CC")
+            if command -v ccache >/dev/null 2>&1; then
+              CMAKE_ARGS+=(-DCMAKE_C_COMPILER_LAUNCHER="ccache")
+            fi
+          fi
+          
+          if ! cmake "${CMAKE_ARGS[@]}" 2>&1 | tee /tmp/cmake-configure.log; then
+            echo "⚠️  CMake configure failed, checking log..."
+            cat /tmp/cmake-configure.log | tail -20
+            echo ""
+            echo "Trying autotools fallback..."
+            
+            # Try autotools if CMake fails
+            if [ -f "autogen.sh" ]; then
+              echo "Running autogen.sh..."
+              ./autogen.sh || {
+                echo "❌ autogen.sh failed"
+                exit 1
+              }
+              echo "Running configure..."
+              ./configure --enable-bench --disable-wallet --disable-gui || {
+                echo "❌ Configure failed"
+                exit 1
+              }
+              echo "Building bench_bitcoin with autotools..."
+              make -j$(nproc) bench_bitcoin || {
+                echo "❌ Build failed"
+                exit 1
+              }
+              echo "✅ bench_bitcoin built successfully with autotools"
+              exit 0
+            else
+              echo "❌ No autogen.sh found, CMake is required"
+              exit 1
+            fi
+          fi
+          
+          echo "Building bench_bitcoin..."
+          if ! cmake --build build --target bench_bitcoin -j$(nproc) 2>&1 | tee /tmp/cmake-build.log; then
+            echo "❌ Failed to build bench_bitcoin with CMake"
+            echo "Build log (last 30 lines):"
+            tail -30 /tmp/cmake-build.log
+            echo ""
+            echo "Trying autotools fallback..."
+            if [ -f "autogen.sh" ]; then
+              echo "Running autogen.sh..."
+              ./autogen.sh || {
+                echo "❌ autogen.sh failed"
+                exit 1
+              }
+              echo "Running configure..."
+              ./configure --enable-bench --disable-wallet --disable-gui || {
+                echo "❌ Configure failed"
+                exit 1
+              }
+              echo "Building bench_bitcoin with autotools..."
+              make -j$(nproc) bench_bitcoin || {
+                echo "❌ Build failed"
+                exit 1
+              }
+              echo "✅ bench_bitcoin built successfully with autotools"
+            else
+              echo "❌ No autotools fallback available"
+              exit 1
+            fi
+          fi
+          
+          # Verify bench_bitcoin exists
+          if [ -f "build/bin/bench_bitcoin" ]; then
+            echo "✅ bench_bitcoin built successfully at build/bin/bench_bitcoin"
+          elif [ -f "src/bench_bitcoin" ]; then
+            echo "✅ bench_bitcoin found at src/bench_bitcoin (autotools build)"
+          else
+            echo "❌ bench_bitcoin not found after build"
+            echo "Checking build/bin/:"
+            ls -la build/bin/ 2>/dev/null || echo "build/bin/ does not exist"
+            echo "Checking src/:"
+            ls -la src/bench_bitcoin 2>/dev/null || echo "src/bench_bitcoin does not exist"
+            exit 1
+          fi
+
+      - name: Verify paths and set environment
+        run: |
+          # Get paths from previous step
+          CORE_PATH="${{ steps.setup.outputs.core_path }}"
+          COMMONS_CONSENSUS_PATH="${{ steps.setup.outputs.commons_consensus_path }}"
+          COMMONS_NODE_PATH="${{ steps.setup.outputs.commons_node_path }}"
+          
+          echo "Verifying paths from setup step:"
+          echo "  CORE_PATH: $CORE_PATH"
+          echo "  COMMONS_CONSENSUS_PATH: $COMMONS_CONSENSUS_PATH"
+          echo "  COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
+          
+          # Verify they exist
+          if [ ! -d "$COMMONS_CONSENSUS_PATH" ]; then
+            echo "❌ COMMONS_CONSENSUS_PATH does not exist: $COMMONS_CONSENSUS_PATH"
+            exit 1
+          fi
+          if [ ! -d "$COMMONS_NODE_PATH" ]; then
+            echo "❌ COMMONS_NODE_PATH does not exist: $COMMONS_NODE_PATH"
+            exit 1
+          fi
+          
+          # Verify bench_bitcoin exists
+          if [ -f "$CORE_PATH/build/bin/bench_bitcoin" ]; then
+            echo "✅ bench_bitcoin found at $CORE_PATH/build/bin/bench_bitcoin"
+          else
+            echo "⚠️  bench_bitcoin not found - Core benchmarks will fail"
+          fi
+          
+          # Test path discovery
+          echo ""
+          echo "Testing path discovery..."
+          source ./scripts/discover-paths.sh
+          
+          echo ""
+          echo "Discovered paths:"
+          echo "  CORE_PATH: ${CORE_PATH:-NOT SET}"
+          echo "  COMMONS_CONSENSUS_PATH: ${COMMONS_CONSENSUS_PATH:-NOT SET}"
+          echo "  COMMONS_NODE_PATH: ${COMMONS_NODE_PATH:-NOT SET}"
+          
+          if [ -z "$COMMONS_CONSENSUS_PATH" ]; then
+            echo "❌ COMMONS_CONSENSUS_PATH is still not set after discovery!"
+            exit 1
+          fi
+          
+          echo "✅ Paths verified and ready"
+
+      - name: Check dependencies
+        env:
+          CORE_PATH: ${{ steps.setup.outputs.core_path }}
+          COMMONS_CONSENSUS_PATH: ${{ steps.setup.outputs.commons_consensus_path }}
+          COMMONS_NODE_PATH: ${{ steps.setup.outputs.commons_node_path }}
+        run: |
+          export CORE_PATH="$CORE_PATH"
+          export COMMONS_CONSENSUS_PATH="$COMMONS_CONSENSUS_PATH"
+          export COMMONS_NODE_PATH="$COMMONS_NODE_PATH"
+          ./scripts/check-dependencies.sh
+          echo "✅ Dependencies check passed"
+
+      - name: Run benchmarks
+        env:
+          RUSTFLAGS: "-C target-cpu=native"
+          CORE_PATH: ${{ steps.setup.outputs.core_path }}
+          COMMONS_CONSENSUS_PATH: ${{ steps.setup.outputs.commons_consensus_path }}
+          COMMONS_NODE_PATH: ${{ steps.setup.outputs.commons_node_path }}
+          # Help Rust find OpenSSL
+          PKG_CONFIG_PATH: /usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig
+          OPENSSL_DIR: /usr
+        run: |
+          # CRITICAL: Unset CC/CXX if they point to ccache
+          # OpenSSL build scripts fail when CC=ccache (they try to use ccache as compiler)
+          # Rust/Cargo will use the system compiler directly, which is what we want
+          if [ "$CC" = "ccache" ] || [ "${CC##*/}" = "ccache" ]; then
+            echo "⚠️  Unsetting CC (was ccache) for Rust builds"
+            unset CC
+          fi
+          if [ "$CXX" = "ccache" ] || [ "${CXX##*/}" = "ccache" ]; then
+            echo "⚠️  Unsetting CXX (was ccache) for Rust builds"
+            unset CXX
+          fi
+          
+          # Verify pkg-config can find OpenSSL
+          echo "Checking OpenSSL installation..."
+          pkg-config --modversion openssl || echo "⚠️  pkg-config can't find OpenSSL"
+          pkg-config --cflags openssl || echo "⚠️  pkg-config can't get OpenSSL flags"
+          
+          # Pre-flight check: Verify path dependencies are accessible before running benchmarks
+          BENCH_ROOT="$(pwd)"
+          echo "Pre-flight check: Verifying path dependencies from $BENCH_ROOT..."
+          
+          if [ ! -f "../bllvm-consensus/Cargo.toml" ]; then
+            echo "❌ CRITICAL: ../bllvm-consensus/Cargo.toml not accessible from bllvm-bench root"
+            echo "   Current directory: $(pwd)"
+            echo "   Attempting to fix symlink..."
+            if [ -L "../bllvm-consensus" ]; then
+              echo "   Symlink exists but may be broken: $(readlink "../bllvm-consensus")"
+              rm -f "../bllvm-consensus"
+            fi
+            if [ -d "$HOME/bllvm-consensus" ]; then
+              ln -sf "$HOME/bllvm-consensus" "../bllvm-consensus"
+              echo "   ✅ Recreated symlink: ../bllvm-consensus -> $HOME/bllvm-consensus"
+            else
+              echo "   ❌ $HOME/bllvm-consensus does not exist"
+              exit 1
+            fi
+          fi
+          if [ ! -f "../bllvm-node/Cargo.toml" ]; then
+            echo "❌ CRITICAL: ../bllvm-node/Cargo.toml not accessible"
+            if [ -L "../bllvm-node" ]; then
+              echo "   Symlink exists but may be broken: $(readlink "../bllvm-node")"
+              rm -f "../bllvm-node"
+            fi
+            if [ -d "$HOME/bllvm-node" ]; then
+              ln -sf "$HOME/bllvm-node" "../bllvm-node"
+              echo "   ✅ Recreated symlink: ../bllvm-node -> $HOME/bllvm-node"
+            else
+              echo "   ❌ $HOME/bllvm-node does not exist"
+              exit 1
+            fi
+          fi
+          echo "✅ Path dependencies verified"
+          
+          # Explicitly export paths BEFORE running any scripts
+          export CORE_PATH="$CORE_PATH"
+          export COMMONS_CONSENSUS_PATH="$COMMONS_CONSENSUS_PATH"
+          export COMMONS_NODE_PATH="$COMMONS_NODE_PATH"
+          export BLLVM_BENCH_CONFIG="$(pwd)/config/config.toml"
+          export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig}"
+          export OPENSSL_DIR="${OPENSSL_DIR:-/usr}"
+          
+          echo "Running benchmarks with paths:"
+          echo "  CORE_PATH: $CORE_PATH"
+          echo "  COMMONS_CONSENSUS_PATH: $COMMONS_CONSENSUS_PATH"
+          echo "  COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
+          echo "  Config file: $BLLVM_BENCH_CONFIG"
+          
+          # Verify paths exist
+          if [ ! -d "$COMMONS_CONSENSUS_PATH" ]; then
+            echo "❌ COMMONS_CONSENSUS_PATH does not exist: $COMMONS_CONSENSUS_PATH"
+            exit 1
+          fi
+          if [ ! -d "$COMMONS_NODE_PATH" ]; then
+            echo "❌ COMMONS_NODE_PATH does not exist: $COMMONS_NODE_PATH"
+            exit 1
+          fi
+          
+          # Verify Core path exists (required for full coverage)
+          if [ ! -d "$CORE_PATH" ]; then
+            echo "❌ CORE_PATH does not exist: $CORE_PATH"
+            echo "   Core benchmarks are REQUIRED for full coverage"
+            exit 1
+          fi
+          echo "✅ Core path verified: $CORE_PATH"
+          
+          # Verify config file exists
+          if [ ! -f "$BLLVM_BENCH_CONFIG" ]; then
+            echo "❌ Config file does not exist: $BLLVM_BENCH_CONFIG"
+            exit 1
+          fi
+          
+          echo "✅ All paths verified:"
+          echo "   CORE_PATH: $CORE_PATH"
+          echo "   COMMONS_CONSENSUS_PATH: $COMMONS_CONSENSUS_PATH"
+          echo "   COMMONS_NODE_PATH: $COMMONS_NODE_PATH"
+          echo ""
+          # Determine which suite to run (default to 'all' for scheduled/push)
+          BENCH_SUITE="${{ github.event.inputs.suite || 'all' }}"
+          echo "🚀 Running benchmark suite: $BENCH_SUITE"
+          
+          # Enable metrics collection for 'all' suite or if explicitly requested
+          if [ "$BENCH_SUITE" = "all" ] || [ "${COLLECT_METRICS:-false}" = "true" ]; then
+            export COLLECT_METRICS=true
+            echo "📊 Codebase metrics collection enabled"
+          fi
+          
+          # Run selected benchmark suite
+          ./run-benchmarks.sh "$BENCH_SUITE" 600
+          
+          # Verify benchmarks ran
+          echo ""
+          echo "=== Verifying benchmark execution ==="
+          CORE_COUNT=$(find results -name "core-*.json" -type f | wc -l)
+          COMMONS_COUNT=$(find results -name "commons-*.json" -type f | wc -l)
+          echo "Core benchmarks generated: $CORE_COUNT"
+          echo "Commons benchmarks generated: $COMMONS_COUNT"
+          if [ "$CORE_COUNT" -eq 0 ]; then
+            echo "⚠️  WARNING: No Core benchmarks generated! Full coverage not achieved."
+          fi
+          if [ "$COMMONS_COUNT" -eq 0 ]; then
+            echo "⚠️  WARNING: No Commons benchmarks generated!"
+          fi
+          echo "Total: $((CORE_COUNT + COMMONS_COUNT)) benchmark files"
+          
+          # Fail if no benchmarks were generated (all benchmarks must run)
+          if [ "$CORE_COUNT" -eq 0 ] && [ "$COMMONS_COUNT" -eq 0 ]; then
+            echo "❌ ERROR: No benchmarks were generated! Cannot create release."
+            exit 1
+          fi
+
+      - name: Generate consolidated JSON
+        run: |
+          make json
+          
+
+      - name: Validate consolidated JSON
+        run: |
+          LATEST_JSON="results/benchmark-results-consolidated-latest.json"
+          if [ -f "$LATEST_JSON" ]; then
+            ./scripts/validate-benchmark.sh "$LATEST_JSON" || echo "⚠️  Validation warnings"
+          fi
+
+      - name: Track history
+        run: |
+          LATEST_JSON="results/benchmark-results-consolidated-latest.json"
+          if [ -f "$LATEST_JSON" ]; then
+            ./scripts/track-history.sh "$LATEST_JSON" || echo "⚠️  History tracking failed"
+          fi
+
+      - name: Detect regressions
+        continue-on-error: true
+        run: |
+          LATEST_JSON="results/benchmark-results-consolidated-latest.json"
+          if [ -f "$LATEST_JSON" ]; then
+            ./scripts/detect-regressions.sh "$LATEST_JSON" || echo "⚠️  Regressions detected (see report)"
+          fi
+
+      - name: Find consolidated JSON
+        id: find_json
+        run: |
+          # Look for consolidated JSON in results directory
+          LATEST_JSON="results/benchmark-results-consolidated-latest.json"
+          
+          # Also check suite directories
+          if [ ! -f "$LATEST_JSON" ]; then
+            echo "⚠️  Not found at $LATEST_JSON, searching suite directories..."
+            LATEST_JSON=$(find results -name "benchmark-results-consolidated-latest.json" -type f | head -1)
+          fi
+          
+          if [ -z "$LATEST_JSON" ] || [ ! -f "$LATEST_JSON" ]; then
+            echo "❌ No consolidated JSON found"
+            echo "   Searched: results/benchmark-results-consolidated-latest.json"
+            echo "   And: results/suite-*/benchmark-results-consolidated-latest.json"
+            echo "   Listing results directory:"
+            ls -la results/ 2>/dev/null || echo "   results/ directory doesn't exist"
+            echo "   Release will NOT be created - all benchmarks must complete successfully"
+            exit 1
+          fi
+          
+          echo "✅ Found consolidated JSON: $LATEST_JSON"
+          
+          # Validate JSON has content
+          if [ ! -s "$LATEST_JSON" ]; then
+            echo "❌ Consolidated JSON is empty"
+            echo "   Release will NOT be created"
+            exit 1
+          fi
+          
+          # Check that JSON has benchmark data
+          BENCH_COUNT=$(jq -r '.summary.core_benchmarks // 0' "$LATEST_JSON" 2>/dev/null || echo "0")
+          COMMONS_COUNT=$(jq -r '.summary.commons_benchmarks // 0' "$LATEST_JSON" 2>/dev/null || echo "0")
+          
+          if [ "$BENCH_COUNT" = "0" ] && [ "$COMMONS_COUNT" = "0" ]; then
+            echo "❌ Consolidated JSON has no benchmark data"
+            echo "   Release will NOT be created"
+            exit 1
+          fi
+          
+          # Use absolute path for the release file
+          ABS_JSON=$(cd "$(dirname "$LATEST_JSON")" && pwd)/$(basename "$LATEST_JSON")
+          echo "json_file=$ABS_JSON" >> $GITHUB_OUTPUT
+          echo "✅ Found valid consolidated JSON: $ABS_JSON"
+          echo "   Core benchmarks: $BENCH_COUNT"
+          echo "   Commons benchmarks: $COMMONS_COUNT"
+          echo "   File size: $(wc -c < "$LATEST_JSON") bytes"
+          echo ""
+          echo "DEBUG: GITHUB_OUTPUT contents:"
+          cat $GITHUB_OUTPUT | grep json_file || echo "  (json_file not found in GITHUB_OUTPUT)"
+          echo ""
+          echo "DEBUG: Verifying file exists and is readable:"
+          ls -lh "$ABS_JSON" || echo "  File not found at absolute path"
+          test -r "$ABS_JSON" && echo "  ✅ File is readable" || echo "  ❌ File is not readable"
+
+      - name: Archive old releases (if any)
+        run: |
+          # Archive releases older than 1 week (skip if no releases exist)
+          ONE_WEEK_AGO=$(date -u -d '1 week ago' +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Get all releases with "benchmarks-" prefix (excluding "benchmarks-latest")
+          RELEASES=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName,createdAt,id 2>/dev/null | jq -r '.[] | select(.tagName | startswith("benchmarks-")) | select(.tagName != "benchmarks-latest") | "\(.tagName)|\(.createdAt)|\(.id)"' || echo "")
+          
+          if [ -z "$RELEASES" ]; then
+            echo "No old releases to archive"
+            exit 0
+          fi
+          
+          for release_info in $RELEASES; do
+            TAG=$(echo "$release_info" | cut -d'|' -f1)
+            CREATED=$(echo "$release_info" | cut -d'|' -f2)
+            RELEASE_ID=$(echo "$release_info" | cut -d'|' -f3)
+            
+            # Compare dates (CREATED is ISO 8601 format)
+            CREATED_EPOCH=$(date -u -d "$CREATED" +%s 2>/dev/null || echo "0")
+            ONE_WEEK_AGO_EPOCH=$(date -u -d "$ONE_WEEK_AGO" +%s 2>/dev/null || echo "0")
+            
+            if [ "$CREATED_EPOCH" -lt "$ONE_WEEK_AGO_EPOCH" ] && [ "$CREATED_EPOCH" -gt 0 ]; then
+              echo "Archiving old release: $TAG (created: $CREATED)"
+              # Update release title to mark as archived
+              gh release edit "$TAG" --title "Archived: $TAG" --repo ${{ github.repository }} || echo "⚠️  Failed to archive $TAG"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Delete old assets and release (if exists)
+        run: |
+          # Delete the entire release and tag to ensure clean update
+          # This is necessary because softprops/action-gh-release doesn't always update properly
+          RELEASE_ID=$(gh release view benchmarks-latest --repo ${{ github.repository }} --json id -q .id 2>/dev/null || echo "")
+          
+          if [ -n "$RELEASE_ID" ]; then
+            echo "Found existing benchmarks-latest release, deleting..."
+            
+            # Delete all assets first
+            ASSETS=$(gh release view benchmarks-latest --repo ${{ github.repository }} --json assets -q '.assets[] | select(.name | endswith(".json")) | .id' 2>/dev/null || echo "")
+            for asset_id in $ASSETS; do
+              echo "Deleting asset ID: $asset_id"
+              gh api repos/${{ github.repository }}/releases/assets/$asset_id -X DELETE || echo "⚠️  Failed to delete asset $asset_id"
+            done
+            
+            # Delete the release
+            gh release delete benchmarks-latest --repo ${{ github.repository }} --yes || echo "⚠️  Failed to delete release"
+          fi
+          
+          # Delete the tag if it exists
+          if git ls-remote --tags origin benchmarks-latest | grep -q benchmarks-latest; then
+            echo "Deleting benchmarks-latest tag..."
+            git push origin :refs/tags/benchmarks-latest || echo "⚠️  Tag deletion failed"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Debug release step
+        run: |
+          echo "DEBUG: Checking if release step should run..."
+          echo "  Previous step success: ${{ job.status }}"
+          echo "  find_json.outputs.json_file: '${{ steps.find_json.outputs.json_file }}'"
+          echo "  json_file length: $(echo -n '${{ steps.find_json.outputs.json_file }}' | wc -c)"
+          if [ -n "${{ steps.find_json.outputs.json_file }}" ]; then
+            echo "  ✅ json_file is set"
+            if [ -f "${{ steps.find_json.outputs.json_file }}" ]; then
+              echo "  ✅ File exists at path"
+              ls -lh "${{ steps.find_json.outputs.json_file }}"
+            else
+              echo "  ❌ File does NOT exist at path"
+            fi
+          else
+            echo "  ❌ json_file is empty or not set"
+          fi
+        continue-on-error: true
+
+      - name: Create or Update Release (benchmarks-latest)
+        # Only create release if:
+        # 1. All previous steps succeeded
+        # 2. JSON file was found
+        if: always() && steps.find_json.outputs.json_file != '' && steps.find_json.outcome == 'success'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: benchmarks-latest
+          name: Latest Benchmark Results
+          body: |
+            Latest benchmark results from self-hosted runner.
+            
+            **Run Number:** ${{ github.run_number }}
+            **Commit:** ${{ github.sha }}
+            **Generated:** ${{ github.event.head_commit.timestamp || github.run_id }}
+            
+            The GitHub Pages site automatically loads data from this release.
+            
+            This release is automatically updated on each benchmark run. Only one JSON file is kept per release.
+          files: |
+            ${{ steps.find_json.outputs.json_file }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            results/benchmark-results-consolidated-latest.json
+          retention-days: 30
+
+  # Deploy GitHub Pages after benchmarks complete and release is created
+  deploy-pages:
+    needs: run-benchmarks
+    if: always() && needs.run-benchmarks.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
