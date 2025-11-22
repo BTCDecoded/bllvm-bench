@@ -530,8 +530,8 @@
             try {
                 let jsonData;
                 
-                // Load from raw.githubusercontent.com (same origin as GitHub Pages, no CORS issues)
-                // The JSON file is committed to docs/data/ by the workflow
+                // Load from relative path (same origin as GitHub Pages, no CORS issues)
+                // The JSON file is downloaded from the latest release during Pages deployment
                 console.log('Loading benchmark data from:', JSON_URL);
                 const response = await fetch(JSON_URL, {
                     cache: 'no-store',
@@ -545,10 +545,17 @@
                     const text = await response.text();
                     try {
                         jsonData = JSON.parse(text);
-                        console.log('✅ Loaded from raw.githubusercontent.com');
-                        console.log('Benchmarks in JSON:', Object.keys(jsonData.benchmarks || {}).length);
+                        const benchmarkCount = Object.keys(jsonData.benchmarks || {}).length;
+                        console.log('✅ Loaded JSON file');
+                        console.log('Benchmarks in JSON:', benchmarkCount);
                         console.log('Summary:', JSON.stringify(jsonData.summary, null, 2));
                         console.log('First few benchmark names:', Object.keys(jsonData.benchmarks || {}).slice(0, 5));
+                        
+                        // Warn if we got suspiciously few benchmarks
+                        if (benchmarkCount < 20) {
+                            console.warn(`⚠️  Only ${benchmarkCount} benchmarks found. Expected ~74. The JSON file may be outdated.`);
+                            console.warn('   The Pages workflow should download the latest JSON from the release.');
+                        }
                     } catch (parseError) {
                         console.error('Failed to parse JSON:', parseError);
                         console.error('Response text (first 500 chars):', text.substring(0, 500));
