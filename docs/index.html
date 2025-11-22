@@ -649,36 +649,44 @@
                 const commonsError = bench.commons?.error;
                 const benchError = bench.error;
                 
-                // Check for valid data - be lenient, accept any meaningful data
-                const hasCoreData = bench.core && typeof bench.core === 'object' && 
-                    bench.core !== null &&
-                    (Object.keys(bench.core).length > 1 || // More than just 'error' or 'timestamp'
-                     (Array.isArray(bench.core.benchmarks) && bench.core.benchmarks.length > 0) || 
-                     bench.core.time_ms || 
-                     bench.core.time_ns ||
-                     bench.core.time ||
-                     bench.core.median ||
-                     bench.core.mean ||
-                     bench.core.bitcoin_core ||
-                     bench.core.bitcoin_commons ||
-                     bench.core.bitcoin_core_block_validation ||
-                     bench.core.bitcoin_core_segwit_operations);
+                // Enhanced data detection - recursively search for any timing data
+                function hasValidData(obj, minKeys = 1) {
+                    if (!obj || typeof obj !== 'object') return false;
+                    
+                    // Count non-metadata keys
+                    const metadataKeys = ['error', 'timestamp', 'log_file', 'note', 'raw_output', 
+                                         'measurement_method', 'benchmark_name', 'comparison_note'];
+                    const dataKeys = Object.keys(obj).filter(k => !metadataKeys.includes(k));
+                    
+                    // Must have at least one non-metadata key
+                    if (dataKeys.length < minKeys) return false;
+                    
+                    // Check for timing data using findNestedTime
+                    const timeData = findNestedTime(obj);
+                    if (timeData) return true;
+                    
+                    // Check for known nested data structures
+                    for (const key of dataKeys) {
+                        if (key.includes('bitcoin_') || key.includes('benchmarks') || 
+                            key.includes('node_') || key.includes('rpc_') ||
+                            key.includes('connect_block') || key.includes('mempool') ||
+                            key.includes('segwit') || key.includes('validation')) {
+                            return true;
+                        }
+                    }
+                    
+                    // Check for arrays with data
+                    if (Array.isArray(obj.benchmarks) && obj.benchmarks.length > 0) {
+                        return true;
+                    }
+                    
+                    return false;
+                }
                 
-                const hasCommonsData = bench.commons && typeof bench.commons === 'object' && 
-                    bench.commons !== null &&
-                    (Object.keys(bench.commons).length > 1 || // More than just 'error' or 'timestamp'
-                     (Array.isArray(bench.commons.benchmarks) && bench.commons.benchmarks.length > 0) || 
-                     bench.commons.time_ms || 
-                     bench.commons.time_ns ||
-                     bench.commons.time ||
-                     bench.commons.median ||
-                     bench.commons.mean ||
-                     bench.commons.bitcoin_commons ||
-                     bench.commons.bitcoin_core ||
-                     bench.commons.bitcoin_commons_mempool_operations ||
-                     bench.commons.bitcoin_commons_segwit_operations);
+                const hasCoreData = hasValidData(bench.core);
+                const hasCommonsData = hasValidData(bench.commons);
                 
-                // Only mark as failed if there's an error AND no data at all (or only error/timestamp)
+                // Only mark as failed if there's an error AND no data at all
                 if ((coreError || commonsError || benchError) && !hasCoreData && !hasCommonsData) {
                     failedBenchmarks.push(bench);
                     continue;
@@ -1101,26 +1109,59 @@
             rows.forEach(row => tbody.appendChild(row));
         }
         
-        function extractTime(data) {
-            if (!data || typeof data !== 'object') return '—';
+        function findNestedTime(obj, depth = 0, maxDepth = 10) {
+            if (!obj || typeof obj !== 'object' || depth > maxDepth) return null;
             
-            let time = data.time_ms || data.time_ns || data.time || data.median || data.mean || 0;
+            // Direct time fields (highest priority)
+            if (obj.time_ms && obj.time_ms > 0) return { value: obj.time_ms, unit: 'ms' };
+            if (obj.time_ns && obj.time_ns > 0) return { value: obj.time_ns / 1000000, unit: 'ms' };
+            if (obj.time && obj.time > 0) return { value: obj.time, unit: 'ms' };
+            if (obj.time_per_block_ms && obj.time_per_block_ms > 0) return { value: obj.time_per_block_ms, unit: 'ms' };
+            if (obj.time_per_block_ns && obj.time_per_block_ns > 0) return { value: obj.time_per_block_ns / 1000000, unit: 'ms' };
+            if (obj.median && obj.median > 0) return { value: obj.median, unit: 'ms' };
+            if (obj.mean && obj.mean > 0) return { value: obj.mean, unit: 'ms' };
             
-            if (!time || time === 0) {
-                if (data.benchmarks && Array.isArray(data.benchmarks) && data.benchmarks.length > 0) {
-                    const firstBench = data.benchmarks[0];
-                    time = firstBench.time_ms || firstBench.time_ns || firstBench.time || 
-                           firstBench.median || firstBench.mean ||
-                           (firstBench.statistics && (firstBench.statistics.median?.point_estimate || firstBench.statistics.mean?.point_estimate)) || 0;
+            // Statistics objects
+            if (obj.statistics) {
+                if (obj.statistics.median?.point_estimate && obj.statistics.median.point_estimate > 0) {
+                    return { value: obj.statistics.median.point_estimate / 1000000, unit: 'ms' };
                 }
-                
-                if ((!time || time === 0) && data.statistics) {
-                    time = data.statistics.median?.point_estimate || 
-                           data.statistics.mean?.point_estimate || 0;
+                if (obj.statistics.mean?.point_estimate && obj.statistics.mean.point_estimate > 0) {
+                    return { value: obj.statistics.mean.point_estimate / 1000000, unit: 'ms' };
                 }
             }
             
-            return formatTime(time);
+            // Arrays of benchmarks
+            if (Array.isArray(obj.benchmarks) && obj.benchmarks.length > 0) {
+                const first = findNestedTime(obj.benchmarks[0], depth + 1, maxDepth);
+                if (first) return first;
+            }
+            
+            // Recursive search through nested objects
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key) && typeof obj[key] === 'object' && obj[key] !== null) {
+                    // Skip metadata keys
+                    if (key === 'error' || key === 'timestamp' || key === 'log_file' || 
+                        key === 'note' || key === 'raw_output' || key === 'measurement_method') {
+                        continue;
+                    }
+                    const result = findNestedTime(obj[key], depth + 1, maxDepth);
+                    if (result) return result;
+                }
+            }
+            
+            return null;
+        }
+        
+        function extractTime(data) {
+            if (!data || typeof data !== 'object') return '—';
+            
+            const timeData = findNestedTime(data);
+            if (timeData) {
+                return formatTime(timeData.value);
+            }
+            
+            return '—';
         }
         
         function formatTime(time) {
