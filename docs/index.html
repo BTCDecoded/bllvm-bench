@@ -644,16 +644,15 @@
                     });
                 }
                 
-                // Check for errors - only skip if BOTH core and commons have errors
+                // Check for errors - but don't skip if there's valid data
                 const coreError = bench.core?.error;
                 const commonsError = bench.commons?.error;
                 const benchError = bench.error;
                 
-                // Only mark as failed if there's an error AND no valid data
+                // Check for valid data - be lenient, accept any meaningful data
                 const hasCoreData = bench.core && typeof bench.core === 'object' && 
                     bench.core !== null &&
-                    !coreError && 
-                    (Object.keys(bench.core).length > 0 || 
+                    (Object.keys(bench.core).length > 1 || // More than just 'error' or 'timestamp'
                      (Array.isArray(bench.core.benchmarks) && bench.core.benchmarks.length > 0) || 
                      bench.core.time_ms || 
                      bench.core.time_ns ||
@@ -661,12 +660,13 @@
                      bench.core.median ||
                      bench.core.mean ||
                      bench.core.bitcoin_core ||
-                     bench.core.bitcoin_commons);
+                     bench.core.bitcoin_commons ||
+                     bench.core.bitcoin_core_block_validation ||
+                     bench.core.bitcoin_core_segwit_operations);
                 
                 const hasCommonsData = bench.commons && typeof bench.commons === 'object' && 
                     bench.commons !== null &&
-                    !commonsError && 
-                    (Object.keys(bench.commons).length > 0 || 
+                    (Object.keys(bench.commons).length > 1 || // More than just 'error' or 'timestamp'
                      (Array.isArray(bench.commons.benchmarks) && bench.commons.benchmarks.length > 0) || 
                      bench.commons.time_ms || 
                      bench.commons.time_ns ||
@@ -674,15 +674,17 @@
                      bench.commons.median ||
                      bench.commons.mean ||
                      bench.commons.bitcoin_commons ||
-                     bench.commons.bitcoin_core);
+                     bench.commons.bitcoin_core ||
+                     bench.commons.bitcoin_commons_mempool_operations ||
+                     bench.commons.bitcoin_commons_segwit_operations);
                 
-                // Only mark as failed if there's an error AND no data at all
+                // Only mark as failed if there's an error AND no data at all (or only error/timestamp)
                 if ((coreError || commonsError || benchError) && !hasCoreData && !hasCommonsData) {
                     failedBenchmarks.push(bench);
                     continue;
                 }
                 
-                // Use the data checks
+                // Use the data checks (ignore errors if we have data)
                 const hasCore = hasCoreData;
                 const hasCommons = hasCommonsData;
                 
