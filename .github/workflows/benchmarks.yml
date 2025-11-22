@@ -27,7 +27,7 @@ on:
 jobs:
   # Setup job - clones repos and builds dependencies
   setup:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, perf]
     outputs:
       core_path: ${{ steps.setup.outputs.core_path }}
       commons_consensus_path: ${{ steps.setup.outputs.commons_consensus_path }}
@@ -230,7 +230,7 @@ jobs:
   # Generate benchmark matrix
   generate-matrix:
     needs: setup
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, perf]
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -313,7 +313,7 @@ jobs:
   # Run benchmarks in parallel
   run-benchmark:
     needs: [setup, generate-matrix]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, perf]
     strategy:
       fail-fast: false
       matrix:
@@ -413,7 +413,7 @@ jobs:
   # Consolidate all benchmark results
   consolidate:
     needs: [setup, generate-matrix, run-benchmark]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, perf]
     if: always()
     permissions:
       contents: write
