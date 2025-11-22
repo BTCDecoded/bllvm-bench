@@ -48,13 +48,30 @@ jobs:
           echo "Release found. Assets:"
           echo "$RELEASE_JSON" | jq -r '.assets[] | .name' || echo "  (none)"
           
+          echo "Searching for JSON asset in release..."
+          echo "All assets:"
+          echo "$RELEASE_JSON" | jq -r '.assets[] | "  - \(.name) (\(.size) bytes)"' || echo "  (none)"
+          
+          # Try multiple patterns to find the JSON file
           JSON_ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | contains("benchmark-results-consolidated") and endswith(".json")) | .browser_download_url' | head -1)
+          
+          # If not found, try just looking for any .json file
+          if [ -z "$JSON_ASSET_URL" ] || [ "$JSON_ASSET_URL" = "null" ]; then
+            echo "Trying alternative search: any .json file..."
+            JSON_ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".json")) | .browser_download_url' | head -1)
+          fi
+          
           if [ -z "$JSON_ASSET_URL" ] || [ "$JSON_ASSET_URL" = "null" ]; then
             echo "ERROR: No JSON asset found in release"
+            echo "Searched for:"
+            echo "  - Files containing 'benchmark-results-consolidated' and ending with '.json'"
+            echo "  - Any file ending with '.json'"
             echo "Available assets:"
-            echo "$RELEASE_JSON" | jq -r '.assets[] | .name' || echo "  (none)"
+            echo "$RELEASE_JSON" | jq -r '.assets[] | "  - \(.name) (\(.size) bytes)"' || echo "  (none)"
+            echo "This is a critical error - the release should contain the JSON file."
+            echo "Check that the benchmarks workflow completed successfully and created the release."
             echo '{"error": "No JSON asset in release", "summary": {"total_benchmarks": 0}}' > docs/data/benchmark-results-consolidated-latest.json
-            exit 0
+            exit 1
           fi
           
           echo "Found JSON asset: $JSON_ASSET_URL"
