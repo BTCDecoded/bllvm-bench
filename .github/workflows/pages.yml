@@ -6,14 +6,11 @@ on:
       - main
     paths:
       - 'docs/**'
-      - '.nojekyll'
   workflow_dispatch:
   workflow_run:
     workflows: ["Run Benchmarks"]
-    types:
-      - completed
-    branches:
-      - main
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -22,7 +19,7 @@ permissions:
   releases: read
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -39,43 +36,26 @@ jobs:
         run: |
           echo "Downloading JSON from latest release..."
           RELEASE_TAG="benchmarks-latest"
-          
           mkdir -p docs/data
-          
           RELEASE_JSON=$(gh release view "$RELEASE_TAG" --repo ${{ github.repository }} --json assets,id 2>/dev/null || echo "")
-          
           if [ -z "$RELEASE_JSON" ]; then
             echo "No release found with tag $RELEASE_TAG"
-            echo "This is expected if benchmarks have not run yet"
             echo '{"error": "No release found", "summary": {"total_benchmarks": 0}}' > docs/data/benchmark-results-consolidated-latest.json
             exit 0
           fi
-          
           JSON_ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | contains("benchmark-results-consolidated") and endswith(".json")) | .browser_download_url' | head -1)
-          
           if [ -z "$JSON_ASSET_URL" ] || [ "$JSON_ASSET_URL" = "null" ]; then
             echo "No JSON asset found in release"
-            echo "Available assets:"
-            echo "$RELEASE_JSON" | jq -r '.assets[] | .name' || echo "(none)"
             echo '{"error": "No JSON asset in release", "summary": {"total_benchmarks": 0}}' > docs/data/benchmark-results-consolidated-latest.json
             exit 0
           fi
-          
           echo "Found JSON asset: $JSON_ASSET_URL"
-          
           curl -L -f -o docs/data/benchmark-results-consolidated-latest.json "$JSON_ASSET_URL"
-          
           if [ -f "docs/data/benchmark-results-consolidated-latest.json" ]; then
             FILE_SIZE=$(wc -c < docs/data/benchmark-results-consolidated-latest.json)
-            echo "Downloaded JSON file"
-            echo "File size: $FILE_SIZE bytes"
-            
+            echo "Downloaded JSON file, size: $FILE_SIZE bytes"
             if command -v jq &> /dev/null; then
-              echo "JSON summary:"
-              jq '{total: .summary.total_benchmarks, core: .summary.core_benchmarks, commons: .summary.commons_benchmarks, comparisons: .summary.comparisons}' docs/data/benchmark-results-consolidated-latest.json || echo "(failed to parse)"
-              
-              BENCHMARK_COUNT=$(jq -r '.benchmarks | length' docs/data/benchmark-results-consolidated-latest.json 2>/dev/null || echo "0")
-              echo "Benchmark entries: $BENCHMARK_COUNT"
+              jq '{total: .summary.total_benchmarks, core: .summary.core_benchmarks, commons: .summary.commons_benchmarks, comparisons: .summary.comparisons}' docs/data/benchmark-results-consolidated-latest.json || echo "Failed to parse"
             fi
           else
             echo "Failed to download JSON file"
@@ -91,7 +71,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs'
+          path: docs
       
       - name: Deploy to GitHub Pages
         id: deployment
