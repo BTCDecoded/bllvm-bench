@@ -46,11 +46,20 @@ tokio = { version = "1.35", features = ["full"] }
 # HTTP client for RPC calls
 reqwest = { version = "0.11", features = ["json"] }
 
+# For finding executables in PATH
+which = "5.0"
+# For home directory detection
+dirs = "5.0"
+# For hex encoding/decoding
+hex = "0.4"
+
 [features]
 default = []
 # Enable production optimizations for benchmarking
 # This allows testing benches in production mode even though this is a dev crate
 production = ["bllvm-consensus/production"]
+# Enable differential testing functionality
+differential = []
 
 [dev-dependencies]
 # Additional testing utilities if needed

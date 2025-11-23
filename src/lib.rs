@@ -11,6 +11,16 @@ pub mod deep_analysis;
 /// Shell benchmark runner
 pub mod shell;
 
+/// Differential testing modules (feature-gated)
+#[cfg(feature = "differential")]
+pub mod core_builder;
+#[cfg(feature = "differential")]
+pub mod regtest_node;
+#[cfg(feature = "differential")]
+pub mod core_rpc_client;
+#[cfg(feature = "differential")]
+pub mod differential;
+
 use anyhow::Result;
 
 /// Initialize benchmarking environment
