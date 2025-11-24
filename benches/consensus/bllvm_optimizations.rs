@@ -118,6 +118,10 @@ fn bench_preallocation_impact(c: &mut Criterion) {
             black_box(prealloc_tx_buffer());
     group.bench_function("prealloc_block_buffer", |b| {
             black_box(prealloc_block_buffer());
+        });
+    }
+}
+
 criterion_group!(
     benches,
     bench_transaction_serialization,
