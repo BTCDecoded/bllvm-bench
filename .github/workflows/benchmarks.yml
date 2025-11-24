@@ -292,15 +292,26 @@ jobs:
           fi
 
       - name: Verify Core with Rust infrastructure (optional check)
+        timeout-minutes: 2
         run: |
           # Optional: Use Rust CoreBuilder to verify Core detection
           # This provides better diagnostics and matches differential test behavior
+          # Note: This is optional and non-blocking - benchmarks don't require this
           cd "$GITHUB_WORKSPACE"
-          if cargo build --features benchmark-helpers --bin bllvm-bench 2>/dev/null; then
+          
+          echo "🔍 Checking if Rust infrastructure is available (optional, timeout: 2min)..."
+          
+          # Use timeout to prevent hanging, show progress
+          if timeout 120 cargo build --features benchmark-helpers --bin bllvm-bench --message-format=short 2>&1 | head -50; then
             echo "✅ Rust infrastructure available for Core detection"
             # Could use: cargo run --features benchmark-helpers --bin bllvm-bench -- --find-core
           else
-            echo "ℹ️  Rust infrastructure check skipped (not critical for benchmarks)"
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+              echo "⏱️  Rust build check timed out after 2 minutes (not critical, continuing...)"
+            else
+              echo "ℹ️  Rust infrastructure check skipped (not critical for benchmarks)"
+            fi
           fi
         continue-on-error: true
 
