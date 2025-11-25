@@ -102,6 +102,15 @@ jobs:
           echo "COMMONS_CONSENSUS_PATH=$CONSENSUS_DIR" >> $GITHUB_ENV
           echo "COMMONS_NODE_PATH=$NODE_DIR" >> $GITHUB_ENV
           echo "COMMONS_PROTOCOL_PATH=$PROTOCOL_DIR" >> $GITHUB_ENV
+          
+          # Setup local dependencies for build
+          mkdir -p .cargo
+          cat > .cargo/config.toml << EOF
+          [patch.crates-io]
+          bllvm-protocol = { path = "../bllvm-protocol" }
+          bllvm-consensus = { path = "../bllvm-consensus" }
+          EOF
+          echo "✅ Created .cargo/config.toml for local dependency builds"
 
       - name: Check for Core binaries
         id: check_core

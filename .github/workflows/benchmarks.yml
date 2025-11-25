@@ -290,6 +290,15 @@ jobs:
               echo "✅ bllvm-consensus dependency found in Cargo.toml"
             fi
           fi
+          
+          # Setup local dependencies for build
+          mkdir -p .cargo
+          cat > .cargo/config.toml << EOF
+          [patch.crates-io]
+          bllvm-protocol = { path = "../bllvm-protocol" }
+          bllvm-consensus = { path = "../bllvm-consensus" }
+          EOF
+          echo "✅ Created .cargo/config.toml for local dependency builds"
 
       - name: Verify Core with Rust infrastructure (optional check)
         run: |
@@ -583,6 +592,15 @@ jobs:
             ls -la ../bllvm-protocol 2>/dev/null || echo "   Symlink doesn't exist"
             echo "   Expected path: $COMMONS_PROTOCOL_PATH"
           fi
+          
+          # Setup local dependencies for build
+          mkdir -p .cargo
+          cat > .cargo/config.toml << EOF
+          [patch.crates-io]
+          bllvm-protocol = { path = "../bllvm-protocol" }
+          bllvm-consensus = { path = "../bllvm-consensus" }
+          EOF
+          echo "✅ Created .cargo/config.toml for local dependency builds"
 
       - name: Verify paths and set environment
         run: |
