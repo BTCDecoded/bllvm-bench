@@ -10,14 +10,14 @@ use std::process::{Command, Stdio};
 /// Run a specific shell benchmark
 pub fn run_benchmark(script: &str) -> Result<()> {
     let benchmarks_dir = utils::benchmarks_dir();
-    
+
     // If script doesn't have .sh extension, try adding it
     let script_name = if script.ends_with(".sh") {
         script.to_string()
     } else {
         format!("{}.sh", script)
     };
-    
+
     let script_path = benchmarks_dir.join(&script_name);
 
     if !script_path.exists() {
@@ -35,7 +35,7 @@ pub fn run_benchmark(script: &str) -> Result<()> {
     }
 
     println!("Executing: {}", script_path.display());
-    
+
     let status = Command::new("bash")
         .arg(&script_path)
         .current_dir(&benchmarks_dir)
@@ -45,9 +45,12 @@ pub fn run_benchmark(script: &str) -> Result<()> {
         .with_context(|| format!("Failed to run benchmark: {}", script))?;
 
     if !status.success() {
-        anyhow::bail!("Benchmark script failed with exit code: {:?}", status.code());
+        anyhow::bail!(
+            "Benchmark script failed with exit code: {:?}",
+            status.code()
+        );
     }
-    
+
     println!("✅ Benchmark completed: {}", script_name);
     Ok(())
 }
@@ -55,20 +58,26 @@ pub fn run_benchmark(script: &str) -> Result<()> {
 /// Run all shell benchmarks
 pub fn run_all() -> Result<()> {
     let benchmarks_dir = utils::benchmarks_dir();
-    
+
     if !benchmarks_dir.exists() {
-        anyhow::bail!("Benchmarks directory not found: {}", benchmarks_dir.display());
+        anyhow::bail!(
+            "Benchmarks directory not found: {}",
+            benchmarks_dir.display()
+        );
     }
-    
-    println!("Running all shell benchmarks from: {}", benchmarks_dir.display());
-    
+
+    println!(
+        "Running all shell benchmarks from: {}",
+        benchmarks_dir.display()
+    );
+
     // Look for main suite runner scripts
     let suite_scripts = [
         "run-all-fair-fast-benchmarks.sh",
         "comprehensive-suite.sh",
         "run-all.sh",
     ];
-    
+
     let mut found = false;
     for script in &suite_scripts {
         let script_path = benchmarks_dir.join(script);
@@ -79,7 +88,7 @@ pub fn run_all() -> Result<()> {
             break;
         }
     }
-    
+
     if !found {
         println!("No suite runner found. Available scripts:");
         // List available scripts
@@ -93,7 +102,6 @@ pub fn run_all() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
-

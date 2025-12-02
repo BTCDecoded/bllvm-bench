@@ -3,8 +3,23 @@ name: Run Benchmarks (Parallel)
 on:
   workflow_dispatch:  # Manual trigger
     inputs:
+      speed_fast:
+        description: 'Run fast benchmarks (< 2 min each)'
+        required: false
+        default: true
+        type: boolean
+      speed_medium:
+        description: 'Run medium benchmarks (2-10 min each)'
+        required: false
+        default: false
+        type: boolean
+      speed_slow:
+        description: 'Run slow benchmarks (> 10 min each)'
+        required: false
+        default: false
+        type: boolean
       suite:
-        description: 'Benchmark suite to run (all, fair, core, commons)'
+        description: 'Benchmark suite to run'
         required: false
         default: 'all'
         type: choice
@@ -34,6 +49,8 @@ jobs:
       commons_node_path: ${{ steps.setup.outputs.commons_node_path }}
       commons_protocol_path: ${{ steps.setup.outputs.commons_protocol_path }}
       suite: ${{ steps.determine_suite.outputs.suite }}
+      speed: ${{ steps.determine_suite.outputs.speed }}
+      speed_list: ${{ steps.determine_suite.outputs.speed_list }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -84,12 +101,50 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Determine suite
+      - name: Determine suite and speed
         id: determine_suite
         run: |
+          # Parse speed checkboxes
+          SPEED_FAST="${{ github.event.inputs.speed_fast }}"
+          SPEED_MEDIUM="${{ github.event.inputs.speed_medium }}"
+          SPEED_SLOW="${{ github.event.inputs.speed_slow }}"
+          
+          # Build speed list from checkboxes
+          SPEED_LIST=""
+          if [ "$SPEED_FAST" = "true" ]; then
+            SPEED_LIST="${SPEED_LIST}fast "
+          fi
+          if [ "$SPEED_MEDIUM" = "true" ]; then
+            SPEED_LIST="${SPEED_LIST}medium "
+          fi
+          if [ "$SPEED_SLOW" = "true" ]; then
+            SPEED_LIST="${SPEED_LIST}slow "
+          fi
+          
+          # Default to fast if nothing selected
+          if [ -z "$SPEED_LIST" ]; then
+            SPEED_LIST="fast "
+            echo "⚠️  No speed category selected, defaulting to fast"
+          fi
+          
+          SPEED_LIST=$(echo "$SPEED_LIST" | xargs)  # Trim whitespace
+          echo "🚀 Selected speed categories: $SPEED_LIST"
+          echo "speed_list=$SPEED_LIST" >> $GITHUB_OUTPUT
+          
+          # Get suite from dropdown (default: all)
           SUITE="${{ github.event.inputs.suite || 'all' }}"
-          echo "suite=$SUITE" >> $GITHUB_OUTPUT
           echo "🚀 Running benchmark suite: $SUITE"
+          echo "suite=$SUITE" >> $GITHUB_OUTPUT
+          
+          # For backward compatibility, determine primary speed
+          # If only one speed selected, use it; otherwise use "all"
+          SPEED_COUNT=$(echo "$SPEED_LIST" | wc -w)
+          if [ "$SPEED_COUNT" -eq 1 ]; then
+            PRIMARY_SPEED="$SPEED_LIST"
+          else
+            PRIMARY_SPEED="all"
+          fi
+          echo "speed=$PRIMARY_SPEED" >> $GITHUB_OUTPUT
 
       - name: Setup dependencies (Core and Commons)
         id: setup
@@ -235,17 +290,41 @@ jobs:
               echo "✅ bllvm-consensus dependency found in Cargo.toml"
             fi
           fi
+          
+          # Setup local dependencies for build
+          mkdir -p .cargo
+          cat > .cargo/config.toml << EOF
+          [patch.crates-io]
+          bllvm-protocol = { path = "../bllvm-protocol" }
+          bllvm-consensus = { path = "../bllvm-consensus" }
+          EOF
+          echo "✅ Created .cargo/config.toml for local dependency builds"
 
       - name: Verify Core with Rust infrastructure (optional check)
         run: |
           # Optional: Use Rust CoreBuilder to verify Core detection
           # This provides better diagnostics and matches differential test behavior
+          # Note: This is optional and non-blocking - benchmarks don't require this
           cd "$GITHUB_WORKSPACE"
-          if cargo build --features benchmark-helpers --bin bllvm-bench 2>/dev/null; then
+          
+          echo "🔍 Checking if Rust infrastructure is available (optional)..."
+          
+          # Verify dependencies are available
+          if [ ! -e "../bllvm-consensus" ] && [ ! -d "../bllvm-consensus" ]; then
+            echo "⚠️  bllvm-consensus dependency not found, skipping Rust check"
+            echo "ℹ️  This is expected if dependencies aren't set up yet (not critical for benchmarks)"
+            exit 0
+          fi
+          
+          # Try to build with verbose output to see what's happening
+          echo "Building bllvm-bench with benchmark-helpers feature..."
+          if cargo build --features benchmark-helpers --bin bllvm-bench --message-format=short 2>&1; then
             echo "✅ Rust infrastructure available for Core detection"
             # Could use: cargo run --features benchmark-helpers --bin bllvm-bench -- --find-core
           else
-            echo "ℹ️  Rust infrastructure check skipped (not critical for benchmarks)"
+            echo "ℹ️  Rust infrastructure check failed (not critical for benchmarks)"
+            echo "   This is expected if dependencies aren't fully set up or if there are build issues"
+            echo "   Benchmarks will continue using shell scripts which don't require this"
           fi
         continue-on-error: true
 
@@ -318,9 +397,71 @@ jobs:
         id: set-matrix
         run: |
           SUITE="${{ needs.setup.outputs.suite }}"
+          SPEED_LIST="${{ needs.setup.outputs.speed_list }}"
+          SPEED="${{ needs.setup.outputs.speed }}"
           BENCHMARKS=()
           
-          if [ "$SUITE" = "all" ]; then
+          # Source speed mapping
+          source "$GITHUB_WORKSPACE/scripts/benchmark-speed-map.sh"
+          
+          # If speed list is provided (multiple speeds selected), filter by all selected speeds
+          if [ -n "$SPEED_LIST" ] && [ "$SPEED" != "all" ]; then
+            echo "Filtering benchmarks by speed categories: $SPEED_LIST"
+            
+            # Collect benchmarks from all selected speed categories
+            ALL_SPEED_BENCHMARKS=""
+            for speed_cat in $SPEED_LIST; do
+              echo "Getting benchmarks for speed category: $speed_cat"
+              SPEED_BENCHMARKS=$(get_benchmarks_by_speed "$speed_cat")
+              if [ -n "$SPEED_BENCHMARKS" ]; then
+                ALL_SPEED_BENCHMARKS="${ALL_SPEED_BENCHMARKS}${SPEED_BENCHMARKS} "
+              fi
+            done
+            
+            # Remove duplicates and set
+            SPEED_BENCHMARKS=$(echo "$ALL_SPEED_BENCHMARKS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
+            
+            # Find matching scripts
+            if [ -d "scripts/shared/benchmarks" ]; then
+              for bench in $SPEED_BENCHMARKS; do
+                for script in scripts/shared/benchmarks/*.sh; do
+                  if [ -f "$script" ]; then
+                    name=$(basename "$script" .sh)
+                    if [ "$name" = "$bench" ]; then
+                      BENCHMARKS+=("{\"name\":\"$name\",\"script\":\"$script\",\"type\":\"shared\"}")
+                    fi
+                  fi
+                done
+              done
+            fi
+            
+            if [ -d "scripts/core" ]; then
+              for bench in $SPEED_BENCHMARKS; do
+                for script in scripts/core/*.sh; do
+                  if [ -f "$script" ]; then
+                    name=$(basename "$script" .sh)
+                    if [ "$name" = "$bench" ]; then
+                      BENCHMARKS+=("{\"name\":\"core-$name\",\"script\":\"$script\",\"type\":\"core\"}")
+                    fi
+                  fi
+                done
+              done
+            fi
+            
+            if [ -d "scripts/commons" ]; then
+              for bench in $SPEED_BENCHMARKS; do
+                for script in scripts/commons/*.sh; do
+                  if [ -f "$script" ]; then
+                    name=$(basename "$script" .sh)
+                    if [ "$name" = "$bench" ]; then
+                      BENCHMARKS+=("{\"name\":\"commons-$name\",\"script\":\"$script\",\"type\":\"commons\"}")
+                    fi
+                  fi
+                done
+              done
+            fi
+          # Handle suite selection (can be multiple or "all")
+          elif [ "$SUITE" = "all" ]; then
             # All benchmarks
             if [ -d "scripts/shared/benchmarks" ]; then
               for script in scripts/shared/benchmarks/*.sh; do
@@ -451,6 +592,15 @@ jobs:
             ls -la ../bllvm-protocol 2>/dev/null || echo "   Symlink doesn't exist"
             echo "   Expected path: $COMMONS_PROTOCOL_PATH"
           fi
+          
+          # Setup local dependencies for build
+          mkdir -p .cargo
+          cat > .cargo/config.toml << EOF
+          [patch.crates-io]
+          bllvm-protocol = { path = "../bllvm-protocol" }
+          bllvm-consensus = { path = "../bllvm-consensus" }
+          EOF
+          echo "✅ Created .cargo/config.toml for local dependency builds"
 
       - name: Verify paths and set environment
         run: |
@@ -653,6 +803,7 @@ jobs:
         id: consolidate
         run: |
           SUITE="${{ needs.setup.outputs.suite }}"
+          SPEED="${{ needs.setup.outputs.speed }}"
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           RESULTS_DIR="results/suite-$SUITE-$TIMESTAMP"
           mkdir -p "$RESULTS_DIR"
@@ -674,36 +825,77 @@ jobs:
           # Run consolidation script
           if [ -f "scripts/generate-consolidated-json.sh" ]; then
             echo "Running consolidation script..."
-            bash scripts/generate-consolidated-json.sh "$RESULTS_DIR" || {
-              echo "⚠️  Consolidation script failed, but continuing..."
-            }
+            
+            # If speed is specified (fast/medium/slow), generate only that category
+            if [ "$SPEED" != "all" ] && [ "$SPEED" != "fair" ] && [ "$SPEED" != "core" ] && [ "$SPEED" != "commons" ]; then
+              echo "Generating $SPEED benchmarks JSON..."
+              bash scripts/generate-consolidated-json.sh "$RESULTS_DIR" "$SPEED" || {
+                echo "⚠️  Consolidation script failed for $SPEED, but continuing..."
+              }
+              
+              # Set output for the specific speed
+              case "$SPEED" in
+                fast)
+                  FAST_JSON="$RESULTS_DIR/benchmark-results-fast.json"
+                  echo "json_file_fast=$FAST_JSON" >> $GITHUB_OUTPUT
+                  echo "json_file=$FAST_JSON" >> $GITHUB_OUTPUT
+                  ;;
+                medium)
+                  MEDIUM_JSON="$RESULTS_DIR/benchmark-results-medium.json"
+                  echo "json_file_medium=$MEDIUM_JSON" >> $GITHUB_OUTPUT
+                  echo "json_file=$MEDIUM_JSON" >> $GITHUB_OUTPUT
+                  ;;
+                slow)
+                  SLOW_JSON="$RESULTS_DIR/benchmark-results-slow.json"
+                  echo "json_file_slow=$SLOW_JSON" >> $GITHUB_OUTPUT
+                  echo "json_file=$SLOW_JSON" >> $GITHUB_OUTPUT
+                  ;;
+              esac
+            else
+              # ALWAYS generate all three speed categories (for scheduled/push or "all" option)
+              # This ensures we always have 3 separate JSON files
+              echo "Generating all speed category JSONs (fast, medium, slow)..."
+              for speed_cat in fast medium slow; do
+                echo "Generating $speed_cat benchmarks JSON..."
+                bash scripts/generate-consolidated-json.sh "$RESULTS_DIR" "$speed_cat" || {
+                  echo "⚠️  Consolidation script failed for $speed_cat, but continuing..."
+                }
+              done
+              
+              # Set outputs for all three - these will always be set
+              FAST_JSON="$RESULTS_DIR/benchmark-results-fast.json"
+              MEDIUM_JSON="$RESULTS_DIR/benchmark-results-medium.json"
+              SLOW_JSON="$RESULTS_DIR/benchmark-results-slow.json"
+              
+              # Always set all three outputs, even if files are empty
+              echo "json_file_fast=$FAST_JSON" >> $GITHUB_OUTPUT
+              echo "json_file_medium=$MEDIUM_JSON" >> $GITHUB_OUTPUT
+              echo "json_file_slow=$SLOW_JSON" >> $GITHUB_OUTPUT
+              
+              # Also generate legacy consolidated JSON for backward compatibility
+              bash scripts/generate-consolidated-json.sh "$RESULTS_DIR" || {
+                echo "⚠️  Consolidation script failed, but continuing..."
+              }
+              CONSOLIDATED_JSON="$RESULTS_DIR/benchmark-results-consolidated-latest.json"
+              echo "json_file=$CONSOLIDATED_JSON" >> $GITHUB_OUTPUT
+            fi
           else
             echo "⚠️  Consolidation script not found"
           fi
           
-          # Find consolidated JSON
-          CONSOLIDATED_JSON=$(find "$RESULTS_DIR" -name "benchmark-results-consolidated*.json" | head -1)
-          if [ -n "$CONSOLIDATED_JSON" ] && [ -f "$CONSOLIDATED_JSON" ]; then
-            # Copy to results root for easier access
-            cp "$CONSOLIDATED_JSON" "results/benchmark-results-consolidated-latest.json" || true
-            echo "json_file=$CONSOLIDATED_JSON" >> $GITHUB_OUTPUT
-            echo "✅ Found consolidated JSON: $CONSOLIDATED_JSON"
-            
-            # Validate it has content
-            if [ -s "$CONSOLIDATED_JSON" ]; then
-              echo "✅ Consolidated JSON has content ($(wc -c < "$CONSOLIDATED_JSON") bytes)"
-            else
-              echo "⚠️  Consolidated JSON is empty"
+          # Validate JSONs have content
+          for json_file in "$FAST_JSON" "$MEDIUM_JSON" "$SLOW_JSON" "$CONSOLIDATED_JSON"; do
+            if [ -n "$json_file" ] && [ -f "$json_file" ]; then
+              if [ -s "$json_file" ]; then
+                echo "✅ $(basename "$json_file") has content ($(wc -c < "$json_file") bytes)"
+              else
+                echo "⚠️  $(basename "$json_file") is empty"
+              fi
             fi
-          else
-            echo "⚠️  Consolidated JSON not found, but continuing..."
-            # Create a placeholder
-            echo '{"error": "No consolidated JSON generated", "summary": {"total_benchmarks": 0}}' > "$RESULTS_DIR/benchmark-results-consolidated-latest.json"
-            echo "json_file=$RESULTS_DIR/benchmark-results-consolidated-latest.json" >> $GITHUB_OUTPUT
-          fi
+          done
           
-          # Collect metrics if suite is 'all'
-          if [ "$SUITE" = "all" ]; then
+          # Collect metrics if suite is 'all' or speed is 'all'
+          if [ "$SUITE" = "all" ] || [ "$SPEED" = "all" ]; then
             echo "Collecting codebase metrics..."
             export COLLECT_METRICS=true
             if [ -f "scripts/metrics/code-size.sh" ]; then
@@ -723,18 +915,58 @@ jobs:
             fi
           fi
 
+      - name: Run differential tests and generate JSON
+        id: run_differential
+        if: success()
+        run: |
+          echo "Running differential tests..."
+          export CORE_PATH="${{ needs.setup.outputs.core_path }}"
+          export BITCOIN_RPC_USER=test
+          export BITCOIN_RPC_PASSWORD=test
+          export BITCOIN_NETWORK=regtest
+          
+          # Ensure results directory exists
+          mkdir -p results
+          
+          # Run tests and generate JSON
+          cargo test --features differential --test integration -- --nocapture || true
+          
+          # Ensure JSON is written (test may not have run due to execution order)
+          # Try to write it explicitly if it doesn't exist
+          if [ ! -f "results/differential-test-results.json" ]; then
+            echo "⚠️  Differential test JSON not found after tests, attempting to generate..."
+            # Run the JSON writing test explicitly
+            cargo test --features differential --test integration z_write_differential_test_results -- --nocapture || true
+          fi
+          
+          # Check for JSON file
+          if [ -f "results/differential-test-results.json" ]; then
+            echo "✅ Differential test JSON found"
+            echo "differential_json=results/differential-test-results.json" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  Differential test JSON not found after all attempts"
+            echo "differential_json=" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
       - name: Create or Update Release
-        if: success() && steps.consolidate.outputs.json_file != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.suite == 'all')
+        if: success() && (steps.consolidate.outputs.json_file != '' || steps.consolidate.outputs.json_file_fast != '')
         uses: softprops/action-gh-release@v1
         with:
           tag_name: benchmarks-latest
-          name: Latest Benchmark Results
+          name: Latest Benchmark & Differential Test Results
           body: |
-            Latest benchmark results from parallel execution.
+            Latest benchmark and differential test results.
             
             Suite: ${{ needs.setup.outputs.suite }}
+            Speed: ${{ needs.setup.outputs.speed }}
             Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          files: ${{ steps.consolidate.outputs.json_file }}
+            
+            ## Files Included:
+            ${{ steps.consolidate.outputs.json_file_fast && '✅ Fast benchmarks' || '' }}
+            ${{ steps.consolidate.outputs.json_file_medium && '✅ Medium benchmarks' || '' }}
+            ${{ steps.consolidate.outputs.json_file_slow && '✅ Slow benchmarks' || '' }}
+            ${{ steps.run_differential.outputs.differential_json && '✅ Differential test results' || '' }}
           draft: false
           prerelease: false
         env:
@@ -744,12 +976,51 @@ jobs:
         if: success()
         run: |
           gh release delete-asset benchmarks-latest benchmark-results-consolidated-latest.json --yes || true
+          gh release delete-asset benchmarks-latest benchmark-results-fast.json --yes || true
+          gh release delete-asset benchmarks-latest benchmark-results-medium.json --yes || true
+          gh release delete-asset benchmarks-latest benchmark-results-slow.json --yes || true
+          gh release delete-asset benchmarks-latest differential-test-results.json --yes || true
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Upload consolidated JSON to release
-        if: success() && steps.consolidate.outputs.json_file != ''
+      - name: Upload JSON files to release
+        if: success()
         run: |
-          gh release upload benchmarks-latest "${{ steps.consolidate.outputs.json_file }}" --clobber || true
+          echo "Uploading JSON files to release..."
+          
+          # Upload all 3 speed category JSON files (always upload if they exist)
+          # Fast benchmarks
+          if [ -n "${{ steps.consolidate.outputs.json_file_fast }}" ] && [ -f "${{ steps.consolidate.outputs.json_file_fast }}" ]; then
+            echo "📤 Uploading fast benchmarks: ${{ steps.consolidate.outputs.json_file_fast }}"
+            gh release upload benchmarks-latest "${{ steps.consolidate.outputs.json_file_fast }}" --clobber || echo "⚠️  Failed to upload fast benchmarks"
+          else
+            echo "⚠️  Fast benchmarks JSON not found, skipping upload"
+          fi
+          
+          # Medium benchmarks
+          if [ -n "${{ steps.consolidate.outputs.json_file_medium }}" ] && [ -f "${{ steps.consolidate.outputs.json_file_medium }}" ]; then
+            echo "📤 Uploading medium benchmarks: ${{ steps.consolidate.outputs.json_file_medium }}"
+            gh release upload benchmarks-latest "${{ steps.consolidate.outputs.json_file_medium }}" --clobber || echo "⚠️  Failed to upload medium benchmarks"
+          else
+            echo "⚠️  Medium benchmarks JSON not found, skipping upload"
+          fi
+          
+          # Slow benchmarks
+          if [ -n "${{ steps.consolidate.outputs.json_file_slow }}" ] && [ -f "${{ steps.consolidate.outputs.json_file_slow }}" ]; then
+            echo "📤 Uploading slow benchmarks: ${{ steps.consolidate.outputs.json_file_slow }}"
+            gh release upload benchmarks-latest "${{ steps.consolidate.outputs.json_file_slow }}" --clobber || echo "⚠️  Failed to upload slow benchmarks"
+          else
+            echo "⚠️  Slow benchmarks JSON not found, skipping upload"
+          fi
+          
+          # Differential test results
+          if [ -n "${{ steps.run_differential.outputs.differential_json }}" ] && [ -f "${{ steps.run_differential.outputs.differential_json }}" ]; then
+            echo "📤 Uploading differential test results: ${{ steps.run_differential.outputs.differential_json }}"
+            gh release upload benchmarks-latest "${{ steps.run_differential.outputs.differential_json }}" --clobber || echo "⚠️  Failed to upload differential test results"
+          else
+            echo "⚠️  Differential test JSON not found, skipping upload"
+          fi
+          
+          echo "✅ Upload complete"
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}

@@ -29,6 +29,7 @@ fn create_test_transaction() -> Transaction {
         outputs: tx_outputs![TransactionOutput {
             value: 1000,
             script_pubkey: vec![0x51], // OP_1
+        }],
         lock_time: 0,
     }
 }
@@ -101,6 +102,7 @@ fn bench_merkle_root_calculation(c: &mut Criterion) {
                 b.iter(|| {
                     black_box(calculate_merkle_root(black_box(txs)).unwrap());
                 });
+            },
         );
 /// Benchmark block header serialization
 fn bench_block_header_serialization(c: &mut Criterion) {
@@ -116,6 +118,10 @@ fn bench_preallocation_impact(c: &mut Criterion) {
             black_box(prealloc_tx_buffer());
     group.bench_function("prealloc_block_buffer", |b| {
             black_box(prealloc_block_buffer());
+        });
+    }
+}
+
 criterion_group!(
     benches,
     bench_transaction_serialization,

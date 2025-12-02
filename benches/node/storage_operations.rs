@@ -1,6 +1,6 @@
 use bllvm_consensus::{tx_inputs, tx_outputs, Block, BlockHeader, Transaction, TransactionOutput};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use bllvm_node::storage::Storage;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tempfile::TempDir;
 
 fn create_test_block() -> Block {
@@ -21,7 +21,8 @@ fn create_test_block() -> Block {
                 script_pubkey: vec![0x51],
             }],
             lock_time: 0,
-        }].into_boxed_slice(),
+        }]
+        .into_boxed_slice(),
     }
 }
 fn benchmark_block_store_insert(c: &mut Criterion) {

@@ -37,7 +37,7 @@ fn create_complex_script() -> Vec<u8> {
 fn benchmark_verify_script(c: &mut Criterion) {
     let script_sig = vec![0x51]; // OP_1
     let script_pubkey = create_simple_script();
-    
+
     c.bench_function("verify_script", |b| {
         b.iter(|| {
             let result = verify_script(
@@ -53,7 +53,7 @@ fn benchmark_verify_script(c: &mut Criterion) {
 
 fn benchmark_eval_script_complex(c: &mut Criterion) {
     let script = create_complex_script();
-    
+
     c.bench_function("eval_script_complex", |b| {
         b.iter(|| {
             let mut stack = Vec::new();
@@ -75,4 +75,3 @@ criterion_group!(
     benchmark_eval_script_complex
 );
 criterion_main!(benches);
-

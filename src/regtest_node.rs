@@ -3,12 +3,12 @@
 //! This module manages Bitcoin Core regtest nodes for differential testing.
 //! It handles starting, stopping, and managing multiple concurrent nodes.
 
+use crate::core_builder::CoreBinaries;
 use anyhow::{Context, Result};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
-use crate::core_builder::CoreBinaries;
 
 /// Port manager for allocating unique ports
 #[derive(Debug, Clone)]
@@ -34,10 +34,13 @@ impl PortManager {
             port += 1;
             if port > self.base_port + 100 {
                 // Fallback: use random port
-                port = self.base_port + 100 + (std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() % 100) as u16;
+                port = self.base_port
+                    + 100
+                    + (std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
+                        % 100) as u16;
             }
         }
         used.insert(port);
@@ -104,11 +107,17 @@ impl RegtestNode {
         port_manager: Option<Arc<PortManager>>,
     ) -> Result<Self> {
         // Verify binaries
-        binaries.verify().context("Core binaries verification failed")?;
+        binaries
+            .verify()
+            .context("Core binaries verification failed")?;
 
         // Create data directory
-        std::fs::create_dir_all(&config.data_dir)
-            .with_context(|| format!("Failed to create data directory: {}", config.data_dir.display()))?;
+        std::fs::create_dir_all(&config.data_dir).with_context(|| {
+            format!(
+                "Failed to create data directory: {}",
+                config.data_dir.display()
+            )
+        })?;
 
         // Check if node is already running on this port
         if Self::is_rpc_ready(&config).await {
@@ -139,8 +148,7 @@ impl RegtestNode {
         cmd.stdout(Stdio::null());
         cmd.stderr(Stdio::null());
 
-        cmd.spawn()
-            .context("Failed to start bitcoind")?;
+        cmd.spawn().context("Failed to start bitcoind")?;
 
         // Wait for RPC to be ready
         Self::wait_for_rpc_ready(&config, Duration::from_secs(60))
@@ -166,15 +174,11 @@ impl RegtestNode {
 
         // Use tmpfs if available (faster I/O)
         if Path::new("/dev/shm").exists() {
-            config.data_dir = PathBuf::from(format!(
-                "/dev/shm/bitcoin-regtest-{}",
-                std::process::id()
-            ));
+            config.data_dir =
+                PathBuf::from(format!("/dev/shm/bitcoin-regtest-{}", std::process::id()));
         } else {
-            config.data_dir = std::env::temp_dir().join(format!(
-                "bitcoin-regtest-{}",
-                std::process::id()
-            ));
+            config.data_dir =
+                std::env::temp_dir().join(format!("bitcoin-regtest-{}", std::process::id()));
         }
 
         Self::start(binaries, config, Some(port_manager)).await
@@ -299,5 +303,3 @@ impl Drop for RegtestNode {
         let _ = std::fs::remove_dir_all(&self.config.data_dir);
     }
 }
-
-

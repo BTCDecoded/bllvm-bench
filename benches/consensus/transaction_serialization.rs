@@ -2,7 +2,9 @@
 //! Matches Core's TransactionSerialization benchmark
 
 use bllvm_consensus::serialization::transaction::serialize_transaction;
-use bllvm_consensus::{tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput};
+use bllvm_consensus::{
+    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn create_test_transaction() -> Transaction {
@@ -27,14 +29,11 @@ fn create_test_transaction() -> Transaction {
 
 fn benchmark_transaction_serialization(c: &mut Criterion) {
     let tx = create_test_transaction();
-    
+
     c.bench_function("transaction_serialization", |b| {
-        b.iter(|| {
-            black_box(serialize_transaction(black_box(&tx)))
-        })
+        b.iter(|| black_box(serialize_transaction(black_box(&tx))))
     });
 }
 
 criterion_group!(benches, benchmark_transaction_serialization);
 criterion_main!(benches);
-

@@ -3,7 +3,8 @@ use bllvm_consensus::segwit::{
     calculate_block_weight, calculate_transaction_weight, is_segwit_transaction,
 };
 use bllvm_consensus::{
-    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput,
+    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
+    TransactionOutput,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 

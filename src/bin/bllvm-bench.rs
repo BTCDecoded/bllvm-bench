@@ -53,27 +53,25 @@ fn main() -> Result<()> {
             if production {
                 println!("Production mode enabled");
             }
-            
+
             let mut cmd = Command::new("cargo");
             cmd.arg("bench");
-            
+
             if production {
                 cmd.arg("--features").arg("production");
             }
-            
+
             if let Some(bench_name) = name {
                 cmd.arg("--bench").arg(&bench_name);
                 println!("Running benchmark: {}", bench_name);
             } else {
                 println!("Running all benchmarks");
             }
-            
-            cmd.stdout(Stdio::inherit())
-               .stderr(Stdio::inherit());
-            
-            let status = cmd.status()
-                .context("Failed to run cargo bench")?;
-            
+
+            cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+
+            let status = cmd.status().context("Failed to run cargo bench")?;
+
             if !status.success() {
                 anyhow::bail!("Benchmark execution failed");
             }
@@ -92,7 +90,7 @@ fn main() -> Result<()> {
         }
         Commands::All { production } => {
             println!("Running all benchmarks (Rust + Shell)...");
-            
+
             // Run Rust benchmarks first
             println!("\n=== Running Rust Criterion Benchmarks ===");
             let mut rust_cmd = Command::new("cargo");
@@ -102,22 +100,20 @@ fn main() -> Result<()> {
                 println!("Production mode enabled for Rust benchmarks");
             }
             rust_cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
-            
-            let rust_status = rust_cmd.status()
-                .context("Failed to run Rust benchmarks")?;
-            
+
+            let rust_status = rust_cmd.status().context("Failed to run Rust benchmarks")?;
+
             if !rust_status.success() {
                 eprintln!("Warning: Rust benchmarks failed, continuing with shell benchmarks...");
             }
-            
+
             // Run shell benchmarks
             println!("\n=== Running Shell-Based Benchmarks ===");
             shell::run_all()?;
-            
+
             println!("\n✅ All benchmarks completed!");
         }
     }
 
     Ok(())
 }
-

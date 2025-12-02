@@ -7,10 +7,11 @@
 //! 3. Matches Core's CheckBlock operation (not connect_block)
 
 use bllvm_consensus::block::check_block;
-use bllvm_consensus::{
-    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput,
-};
 use bllvm_consensus::mining::calculate_merkle_root;
+use bllvm_consensus::{
+    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
+    TransactionOutput,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 /// Create a test block for CheckBlock benchmark
@@ -74,7 +75,7 @@ fn create_test_block_for_check_block() -> Block {
 
 fn benchmark_check_block(c: &mut Criterion) {
     let block = create_test_block_for_check_block();
-    
+
     c.bench_function("check_block", |b| {
         b.iter(|| {
             let result = check_block(black_box(&block));
@@ -85,4 +86,3 @@ fn benchmark_check_block(c: &mut Criterion) {
 
 criterion_group!(benches, benchmark_check_block);
 criterion_main!(benches);
-

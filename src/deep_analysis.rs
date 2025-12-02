@@ -1,16 +1,16 @@
 //! Deep Analysis Module
 //! Provides low-level performance metrics similar to bench_bitcoin's deep Core analysis
-//! 
+//!
 //! This module enables collection of:
 //! - CPU cycles and instructions
 //! - Cache performance (L1/L2/L3)
 //! - Branch prediction
 //! - Memory bandwidth
-//! 
+//!
 //! For Commons' own performance optimization and understanding.
 
-use std::process::Command;
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CpuMetrics {
@@ -48,10 +48,7 @@ pub struct DeepAnalysisMetrics {
 
 /// Check if perf is available on the system
 pub fn perf_available() -> bool {
-    Command::new("perf")
-        .arg("--version")
-        .output()
-        .is_ok()
+    Command::new("perf").arg("--version").output().is_ok()
 }
 
 /// Run a benchmark with perf instrumentation
@@ -82,19 +79,26 @@ pub fn run_with_perf(benchmark_cmd: &[&str]) -> Result<DeepAnalysisMetrics, Stri
     for event in &perf_events {
         perf_cmd.arg("-e").arg(event);
     }
-    perf_cmd.arg("-x,").arg("-o").arg("/tmp/perf-deep-analysis.csv");
-    
+    perf_cmd
+        .arg("-x,")
+        .arg("-o")
+        .arg("/tmp/perf-deep-analysis.csv");
+
     // Add the actual benchmark command
     for arg in benchmark_cmd {
         perf_cmd.arg(arg);
     }
 
     // Run perf
-    let output = perf_cmd.output()
+    let output = perf_cmd
+        .output()
         .map_err(|e| format!("Failed to run perf: {}", e))?;
 
     if !output.status.success() {
-        return Err(format!("perf command failed: {}", String::from_utf8_lossy(&output.stderr)));
+        return Err(format!(
+            "perf command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
 
     // Parse perf CSV output
@@ -105,9 +109,8 @@ fn parse_perf_csv(path: &str) -> Result<DeepAnalysisMetrics, String> {
     use std::fs;
     use std::io::{BufRead, BufReader};
 
-    let file = fs::File::open(path)
-        .map_err(|e| format!("Failed to open perf output: {}", e))?;
-    
+    let file = fs::File::open(path).map_err(|e| format!("Failed to open perf output: {}", e))?;
+
     let reader = BufReader::new(file);
     let mut metrics = DeepAnalysisMetrics {
         cpu: CpuMetrics {
@@ -149,7 +152,11 @@ fn parse_perf_csv(path: &str) -> Result<DeepAnalysisMetrics, String> {
             metrics.cpu.instructions = Some(value);
         } else if line.contains("cache-references") {
             metrics.cache.references = Some(value);
-        } else if line.contains("cache-misses") && !line.contains("L1") && !line.contains("L2") && !line.contains("L3") {
+        } else if line.contains("cache-misses")
+            && !line.contains("L1")
+            && !line.contains("L2")
+            && !line.contains("L3")
+        {
             metrics.cache.misses = Some(value);
         } else if line.contains("L1-dcache-loads") {
             metrics.cache.l1_loads = Some(value);
@@ -198,4 +205,3 @@ mod tests {
         let _ = perf_available();
     }
 }
-

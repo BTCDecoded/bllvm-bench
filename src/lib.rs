@@ -4,9 +4,9 @@
 //! While it's a development-only crate, it supports testing in production mode
 //! to ensure benchmarks reflect real-world performance.
 
+pub mod deep_analysis;
 /// Benchmark utilities and helpers
 pub mod utils;
-pub mod deep_analysis;
 
 /// Shell benchmark runner
 pub mod shell;
@@ -16,11 +16,11 @@ pub mod shell;
 #[cfg(any(feature = "differential", feature = "benchmark-helpers"))]
 pub mod core_builder;
 #[cfg(any(feature = "differential", feature = "benchmark-helpers"))]
-pub mod regtest_node;
-#[cfg(any(feature = "differential", feature = "benchmark-helpers"))]
 pub mod core_rpc_client;
 #[cfg(feature = "differential")]
 pub mod differential;
+#[cfg(any(feature = "differential", feature = "benchmark-helpers"))]
+pub mod regtest_node;
 
 use anyhow::Result;
 
@@ -36,4 +36,3 @@ pub fn run_all() -> Result<()> {
     // This will be implemented to coordinate all benchmarks
     Ok(())
 }
-

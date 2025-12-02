@@ -1,6 +1,9 @@
 use bllvm_consensus::block::connect_block;
 use bllvm_consensus::segwit::Witness;
-use bllvm_consensus::{tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UTXO, UtxoSet};
+use bllvm_consensus::{
+    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
+    TransactionOutput, UtxoSet, UTXO,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn create_test_block() -> Block {
@@ -18,7 +21,8 @@ fn create_test_block() -> Block {
             inputs: tx_inputs![],
             outputs: tx_outputs![],
             lock_time: 0,
-        }].into_boxed_slice(),
+        }]
+        .into_boxed_slice(),
     }
 }
 fn benchmark_connect_block(c: &mut Criterion) {
@@ -62,7 +66,7 @@ fn benchmark_connect_block_multi_tx(c: &mut Criterion) {
     // Add 10 regular transactions with inputs that reference UTXOs
     let mut transactions = vec![coinbase];
     let mut utxo_set = UtxoSet::new();
-    
+
     for i in 0..10 {
         // Create a UTXO that will be spent by this transaction
         let prev_outpoint = OutPoint {
@@ -75,7 +79,7 @@ fn benchmark_connect_block_multi_tx(c: &mut Criterion) {
             height: 0,
         };
         utxo_set.insert(prev_outpoint.clone(), prev_utxo);
-        
+
         // Create transaction that spends the UTXO
         transactions.push(Transaction {
             version: 1,

@@ -2,7 +2,9 @@
 //! Matches Core's TransactionSighashCalculation benchmark exactly
 
 use bllvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
-use bllvm_consensus::{tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput};
+use bllvm_consensus::{
+    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn create_test_transaction() -> (Transaction, Vec<TransactionOutput>) {
@@ -18,24 +20,24 @@ fn create_test_transaction() -> (Transaction, Vec<TransactionOutput>) {
             sequence: 0xffffffff,
         }],
         outputs: tx_outputs![TransactionOutput {
-            value: 10_000_000_000, // 10 BTC (matches Core's 10 * COIN)
+            value: 10_000_000_000,           // 10 BTC (matches Core's 10 * COIN)
             script_pubkey: vec![0x51, 0x87], // OP_1 OP_EQUAL (matches Core)
         }],
         lock_time: 0,
     };
-    
+
     // Create prevout (matches Core's coin structure)
     let prevouts = vec![TransactionOutput {
-        value: 11_000_000_000, // 11 BTC (matches Core's dummy input value)
+        value: 11_000_000_000,           // 11 BTC (matches Core's dummy input value)
         script_pubkey: vec![0x51, 0x87], // OP_1 OP_EQUAL
     }];
-    
+
     (tx, prevouts)
 }
 
 fn benchmark_transaction_sighash_calculation(c: &mut Criterion) {
     let (tx, prevouts) = create_test_transaction();
-    
+
     c.bench_function("transaction_sighash_calculation", |b| {
         b.iter(|| {
             // Calculate sighash (SIGHASH_ALL is most common, matches Core)
@@ -47,7 +49,7 @@ fn benchmark_transaction_sighash_calculation(c: &mut Criterion) {
                     black_box(&prevouts),
                     SighashType::All, // SIGHASH_ALL
                 )
-                .unwrap()
+                .unwrap(),
             )
         })
     });
@@ -55,4 +57,3 @@ fn benchmark_transaction_sighash_calculation(c: &mut Criterion) {
 
 criterion_group!(benches, benchmark_transaction_sighash_calculation);
 criterion_main!(benches);
-

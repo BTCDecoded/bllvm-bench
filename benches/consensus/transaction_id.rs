@@ -2,7 +2,9 @@
 //! Matches Core's TransactionIdCalculation benchmark exactly
 
 use bllvm_consensus::block::calculate_tx_id;
-use bllvm_consensus::{tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput};
+use bllvm_consensus::{
+    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn create_test_transaction() -> Transaction {
@@ -33,11 +35,11 @@ fn create_test_transaction() -> Transaction {
         ],
         outputs: tx_outputs![
             TransactionOutput {
-                value: 90_000_000_000, // 90 BTC (matches Core's 90 * COIN)
+                value: 90_000_000_000,     // 90 BTC (matches Core's 90 * COIN)
                 script_pubkey: vec![0x51], // OP_1 (matches Core)
             },
             TransactionOutput {
-                value: 10_000_000_000, // 10 BTC (matches Core's 10 * COIN)
+                value: 10_000_000_000,     // 10 BTC (matches Core's 10 * COIN)
                 script_pubkey: vec![0x51], // OP_1 (matches Core)
             }
         ],
@@ -47,7 +49,7 @@ fn create_test_transaction() -> Transaction {
 
 fn benchmark_transaction_id_calculation(c: &mut Criterion) {
     let tx = create_test_transaction();
-    
+
     c.bench_function("transaction_id_calculation", |b| {
         b.iter(|| {
             // Transaction ID is calculated as double SHA256 of serialized transaction (without witness)
@@ -59,4 +61,3 @@ fn benchmark_transaction_id_calculation(c: &mut Criterion) {
 
 criterion_group!(benches, benchmark_transaction_id_calculation);
 criterion_main!(benches);
-

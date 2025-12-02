@@ -10,7 +10,8 @@
 
 use bllvm_node::validation::{BlockValidationContext, ParallelBlockValidator};
 use bllvm_protocol::{
-    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UtxoSet,
+    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
+    TransactionOutput, UtxoSet,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Instant;
@@ -37,7 +38,7 @@ fn create_test_block_matching_core(
             sequence: 0xffffffff,
         }],
         outputs: tx_outputs![TransactionOutput {
-            value: 50_000_000_000, // 50 BTC
+            value: 50_000_000_000,     // 50 BTC
             script_pubkey: vec![0x51], // Simplified
         }],
         lock_time: 0,
@@ -80,8 +81,7 @@ fn create_test_block_matching_core(
     // Calculate merkle root
     use bllvm_protocol::mining::calculate_merkle_root;
     let mut txs_for_merkle = transactions.clone();
-    let merkle_root = calculate_merkle_root(&txs_for_merkle)
-        .unwrap_or([0; 32]);
+    let merkle_root = calculate_merkle_root(&txs_for_merkle).unwrap_or([0; 32]);
     let block = Block {
         header: BlockHeader {
             version: 1,
@@ -104,7 +104,8 @@ fn benchmark_parallel_validation(c: &mut Criterion) {
     let mut prev_hash = [0u8; 32];
     let mut prev_utxo_set = UtxoSet::new();
     for height in 0..NUM_BLOCKS {
-        let (block, utxo_set) = create_test_block_matching_core(height as u64, prev_hash, &prev_utxo_set);
+        let (block, utxo_set) =
+            create_test_block_matching_core(height as u64, prev_hash, &prev_utxo_set);
         // Calculate block hash (double SHA256 of serialized header)
         use sha2::{Digest, Sha256};
         let mut header_bytes = Vec::with_capacity(80);
@@ -130,10 +131,8 @@ fn benchmark_parallel_validation(c: &mut Criterion) {
     c.bench_function("validate_blocks_parallel_1000", |b| {
         b.iter(|| {
             let start = Instant::now();
-            let _result = validator.validate_blocks_parallel(
-                black_box(&contexts),
-                black_box(DEPTH_FROM_TIP),
-            );
+            let _result =
+                validator.validate_blocks_parallel(black_box(&contexts), black_box(DEPTH_FROM_TIP));
             let elapsed = start.elapsed();
             black_box(elapsed)
         })
@@ -147,7 +146,8 @@ fn benchmark_sequential_validation(c: &mut Criterion) {
     let mut prev_hash = [0u8; 32];
     let mut prev_utxo_set = UtxoSet::new();
     for height in 0..NUM_BLOCKS {
-        let (block, utxo_set) = create_test_block_matching_core(height as u64, prev_hash, &prev_utxo_set);
+        let (block, utxo_set) =
+            create_test_block_matching_core(height as u64, prev_hash, &prev_utxo_set);
         use sha2::{Digest, Sha256};
         let mut header_bytes = Vec::with_capacity(80);
         header_bytes.extend_from_slice(&block.header.version.to_le_bytes());

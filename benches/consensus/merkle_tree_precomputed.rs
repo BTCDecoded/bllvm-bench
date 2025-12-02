@@ -69,12 +69,12 @@ fn calculate_merkle_root_from_hashes(hashes: &[Hash]) -> std::result::Result<Has
 
 fn benchmark_merkle_root_precomputed(c: &mut Criterion) {
     let mut group = c.benchmark_group("merkle_root_precomputed");
-    
+
     // Match Core's leaf counts: 1, 10, 100, 1000, 2000, 9001
     let leaf_counts = vec![1, 10, 100, 1000, 2000, 9001];
     for leaf_count in leaf_counts {
         let hashes = create_precomputed_hashes(leaf_count);
-        
+
         group.bench_with_input(
             BenchmarkId::new("merkle_root_precomputed", format!("{}leaves", leaf_count)),
             &hashes,
@@ -89,8 +89,5 @@ fn benchmark_merkle_root_precomputed(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    benchmark_merkle_root_precomputed,
-);
+criterion_group!(benches, benchmark_merkle_root_precomputed,);
 criterion_main!(benches);

@@ -3,10 +3,10 @@
 //! This module provides functionality to compare BLLVM validation results
 //! against Bitcoin Core's validation results.
 
+use crate::core_rpc_client::CoreRpcClient;
 use anyhow::{Context, Result};
 use bllvm_consensus::types::Network;
 use bllvm_consensus::{Block, Transaction};
-use crate::core_rpc_client::{CoreRpcClient, TestMempoolAcceptResult, SubmitBlockResult};
 
 /// Comparison result
 #[derive(Debug, Clone)]
@@ -113,9 +113,24 @@ pub async fn compare_block_validation(
     bllvm_result: ValidationResult,
     core_client: &CoreRpcClient,
 ) -> Result<ComparisonResult> {
-    // Serialize block to hex
-    // Note: This is simplified - actual serialization should match Bitcoin's format
-    let block_hex = hex::encode(bincode::serialize(block)?);
+    // Serialize block to hex using Bitcoin wire format
+    // Use the proper serialization from bllvm-consensus
+    use bllvm_consensus::serialization::block::serialize_block_header;
+    use bllvm_consensus::serialization::transaction::serialize_transaction;
+    use bllvm_consensus::serialization::varint::encode_varint;
+
+    let mut block_bytes = Vec::new();
+    // Serialize header (80 bytes)
+    block_bytes.extend_from_slice(&serialize_block_header(&block.header));
+    // Serialize transaction count (varint)
+    let tx_count = block.transactions.len() as u64;
+    let varint_bytes = encode_varint(tx_count);
+    block_bytes.extend_from_slice(&varint_bytes);
+    // Serialize transactions
+    for tx in &block.transactions {
+        block_bytes.extend_from_slice(&serialize_transaction(tx));
+    }
+    let block_hex = hex::encode(block_bytes);
 
     // Submit to Core
     let core_result = core_client
@@ -188,4 +203,3 @@ pub fn format_comparison_result(result: &ComparisonResult) -> String {
         msg
     }
 }
-

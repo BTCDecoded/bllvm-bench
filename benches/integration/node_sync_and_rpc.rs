@@ -6,8 +6,8 @@
 //! 3. Runs basic bitcoin-cli compatible RPC commands
 //! 4. Measures performance
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use bllvm_consensus::{tx_inputs, tx_outputs};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -30,37 +30,45 @@ impl RpcClient {
             client: reqwest::Client::new(),
         }
     }
-    async fn call(&self, method: &str, params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+    async fn call(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
             "id": 1
         });
-        let response = timeout(RPC_TIMEOUT, self.client
-            .post(&self.url)
-            .json(&request)
-            .send())
-            .await??;
+        let response = timeout(
+            RPC_TIMEOUT,
+            self.client.post(&self.url).json(&request).send(),
+        )
+        .await??;
         let json: serde_json::Value = response.json().await?;
-        
+
         if let Some(error) = json.get("error") {
             anyhow::bail!("RPC error: {}", error);
         }
         Ok(json["result"].clone())
     }
-    
+
     async fn wait_for_node(&self) -> anyhow::Result<()> {
         // Wait for node to be ready by polling getblockchaininfo
         for _ in 0..60 {
-            if self.call("getblockchaininfo", serde_json::json!([])).await.is_ok() {
+            if self
+                .call("getblockchaininfo", serde_json::json!([]))
+                .await
+                .is_ok()
+            {
                 return Ok(());
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
         anyhow::bail!("Node did not become ready in time");
     }
-    
+
     async fn get_block_count(&self) -> anyhow::Result<u64> {
         let result = self.call("getblockcount", serde_json::json!([])).await?;
         Ok(result.as_u64().unwrap_or(0))
@@ -68,7 +76,10 @@ impl RpcClient {
 }
 
 /// Setup and start a node for benchmarking
-async fn setup_node(data_dir: PathBuf, rpc_port: u16) -> anyhow::Result<(Arc<bllvm_node::node::Node>, RpcClient)> {
+async fn setup_node(
+    data_dir: PathBuf,
+    rpc_port: u16,
+) -> anyhow::Result<(Arc<bllvm_node::node::Node>, RpcClient)> {
     use bllvm_node::node::Node;
     use bllvm_protocol::ProtocolVersion;
     let network_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
@@ -85,11 +96,13 @@ async fn setup_node(data_dir: PathBuf, rpc_port: u16) -> anyhow::Result<(Arc<bll
     // We need to start it, but since node.rpc() returns &RpcManager and start() needs &mut,
     // we'll create a new RPC manager with the same configuration
     // For benchmarking, we'll use the node's data directory to recreate storage
-    let storage_arc = Arc::new(bllvm_node::storage::Storage::new(data_dir.to_str().unwrap())?);
+    let storage_arc = Arc::new(bllvm_node::storage::Storage::new(
+        data_dir.to_str().unwrap(),
+    )?);
     let mempool_arc = Arc::new(bllvm_node::node::mempool::MempoolManager::new());
     // Network manager doesn't implement Clone, so we'll create a minimal one
     let network_arc = Arc::new(bllvm_node::network::NetworkManager::new(network_addr));
-    
+
     let mut rpc_mgr = bllvm_node::rpc::RpcManager::new(rpc_addr)
         .with_dependencies(storage_arc, mempool_arc)
         .with_network_manager(network_arc);
@@ -113,8 +126,8 @@ async fn generate_blocks_via_storage(
     _protocol: &bllvm_protocol::BitcoinProtocolEngine,
     target: u64,
 ) -> anyhow::Result<()> {
-    use bllvm_protocol::Block;
     use bllvm_protocol::types::BlockHeader;
+    use bllvm_protocol::Block;
     // Get current height
     let current_height = storage.chain().get_height()?.unwrap_or(0);
     for height in current_height..(current_height + target) {
@@ -132,7 +145,10 @@ async fn generate_blocks_via_storage(
             inputs: bllvm_protocol::tx_inputs![],
             outputs: bllvm_protocol::tx_outputs![bllvm_protocol::TransactionOutput {
                 value: 5000000000, // 50 BTC
-                script_pubkey: vec![0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac],
+                script_pubkey: vec![
+                    0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac
+                ],
             }],
             lock_time: 0,
         };
@@ -164,7 +180,9 @@ async fn generate_blocks_via_storage(
         storage.blocks().store_height(height + 1, &block_hash)?;
         storage.blocks().store_recent_header(height + 1, &header)?;
         // Update chain state
-        storage.chain().update_tip(&block_hash, &header, height + 1)?;
+        storage
+            .chain()
+            .update_tip(&block_hash, &header, height + 1)?;
         if (height + 1) % 100 == 0 {
             eprintln!("Generated {} blocks", height + 1);
         }
@@ -175,28 +193,40 @@ async fn generate_blocks_via_storage(
 /// Run basic RPC commands
 async fn run_basic_rpc_commands(rpc_client: &RpcClient) -> anyhow::Result<()> {
     // Test getblockchaininfo
-    let info = rpc_client.call("getblockchaininfo", serde_json::json!([])).await?;
+    let info = rpc_client
+        .call("getblockchaininfo", serde_json::json!([]))
+        .await?;
     black_box(info);
     // Test getblockcount
     let count = rpc_client.get_block_count().await?;
     black_box(count);
     // Test getblockhash for block 0 (genesis)
-    let genesis_hash = rpc_client.call("getblockhash", serde_json::json!([0])).await?;
+    let genesis_hash = rpc_client
+        .call("getblockhash", serde_json::json!([0]))
+        .await?;
     let genesis_hash_clone = genesis_hash.clone();
     black_box(genesis_hash);
     // Test getblock for genesis block
     if let Some(hash_str) = genesis_hash_clone.as_str() {
-        let block = rpc_client.call("getblock", serde_json::json!([hash_str, 0])).await?;
+        let block = rpc_client
+            .call("getblock", serde_json::json!([hash_str, 0]))
+            .await?;
         black_box(block);
         // Test getblockheader
-        let header = rpc_client.call("getblockheader", serde_json::json!([hash_str, false])).await?;
+        let header = rpc_client
+            .call("getblockheader", serde_json::json!([hash_str, false]))
+            .await?;
         black_box(header);
     }
     // Test getnetworkinfo
-    let network_info = rpc_client.call("getnetworkinfo", serde_json::json!([])).await?;
+    let network_info = rpc_client
+        .call("getnetworkinfo", serde_json::json!([]))
+        .await?;
     black_box(network_info);
     // Test getmininginfo
-    let mining_info = rpc_client.call("getmininginfo", serde_json::json!([])).await?;
+    let mining_info = rpc_client
+        .call("getmininginfo", serde_json::json!([]))
+        .await?;
     black_box(mining_info);
     Ok(())
 }
@@ -206,49 +236,54 @@ fn benchmark_node_sync_and_rpc(c: &mut Criterion) {
     c.bench_function("sync_1000_blocks_and_rpc", |b| {
         b.iter(|| {
             rt.block_on(async {
-            // Create temporary directory for node data
-            let temp_dir = TempDir::new().unwrap();
-            let data_dir = temp_dir.path().to_path_buf();
-            let rpc_port = 18443; // Standard regtest RPC port
-            // Setup node
-            let (node, rpc_client) = setup_node(data_dir.clone(), rpc_port)
+                // Create temporary directory for node data
+                let temp_dir = TempDir::new().unwrap();
+                let data_dir = temp_dir.path().to_path_buf();
+                let rpc_port = 18443; // Standard regtest RPC port
+                                      // Setup node
+                let (node, rpc_client) = setup_node(data_dir.clone(), rpc_port)
+                    .await
+                    .expect("Failed to setup node");
+                // Generate blocks using storage directly
+                let start = std::time::Instant::now();
+
+                let storage = node.storage();
+                let protocol = node.protocol();
+                if let Err(e) = timeout(
+                    BLOCK_GENERATION_TIMEOUT,
+                    generate_blocks_via_storage(storage, protocol, TARGET_BLOCKS),
+                )
                 .await
-                .expect("Failed to setup node");
-            // Generate blocks using storage directly
-            let start = std::time::Instant::now();
-            
-            let storage = node.storage();
-            let protocol = node.protocol();
-            if let Err(e) = timeout(BLOCK_GENERATION_TIMEOUT, generate_blocks_via_storage(storage, protocol, TARGET_BLOCKS)).await {
-                eprintln!("Warning: Block generation failed or timed out: {:?}", e);
-            }
-            // Wait for blocks to be processed and verify
-            let mut attempts = 0;
-            while attempts < 200 {
-                if let Ok(count) = rpc_client.get_block_count().await {
-                    if count >= TARGET_BLOCKS {
-                        break;
-                    }
+                {
+                    eprintln!("Warning: Block generation failed or timed out: {:?}", e);
                 }
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                attempts += 1;
-            }
-            let sync_time = start.elapsed();
-            let final_count = rpc_client.get_block_count().await.unwrap_or(0);
-            let sync_time_ms = sync_time.as_millis() as f64;
-            eprintln!("Synced {} blocks in {:.2} ms", final_count, sync_time_ms);
-            // Run basic RPC commands
-            let rpc_start = std::time::Instant::now();
-            run_basic_rpc_commands(&rpc_client)
-                .await
-                .expect("Failed to run RPC commands");
-            let rpc_time = rpc_start.elapsed();
-            let rpc_time_ms = rpc_time.as_millis() as f64;
-            eprintln!("RPC commands completed in {:.2} ms", rpc_time_ms);
-            // Cleanup
-            drop(node);
-            drop(temp_dir);
-            black_box((sync_time, rpc_time))
+                // Wait for blocks to be processed and verify
+                let mut attempts = 0;
+                while attempts < 200 {
+                    if let Ok(count) = rpc_client.get_block_count().await {
+                        if count >= TARGET_BLOCKS {
+                            break;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    attempts += 1;
+                }
+                let sync_time = start.elapsed();
+                let final_count = rpc_client.get_block_count().await.unwrap_or(0);
+                let sync_time_ms = sync_time.as_millis() as f64;
+                eprintln!("Synced {} blocks in {:.2} ms", final_count, sync_time_ms);
+                // Run basic RPC commands
+                let rpc_start = std::time::Instant::now();
+                run_basic_rpc_commands(&rpc_client)
+                    .await
+                    .expect("Failed to run RPC commands");
+                let rpc_time = rpc_start.elapsed();
+                let rpc_time_ms = rpc_time.as_millis() as f64;
+                eprintln!("RPC commands completed in {:.2} ms", rpc_time_ms);
+                // Cleanup
+                drop(node);
+                drop(temp_dir);
+                black_box((sync_time, rpc_time))
             })
         })
     });

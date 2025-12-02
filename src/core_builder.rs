@@ -5,7 +5,6 @@
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Bitcoin Core binaries location
 #[derive(Debug, Clone)]
@@ -43,7 +42,10 @@ impl CoreBinaries {
                 .context("Failed to read bitcoin-cli metadata")?
                 .permissions();
             if perms.mode() & 0o111 == 0 {
-                anyhow::bail!("bitcoin-cli is not executable: {}", self.bitcoin_cli.display());
+                anyhow::bail!(
+                    "bitcoin-cli is not executable: {}",
+                    self.bitcoin_cli.display()
+                );
             }
         }
 
@@ -129,9 +131,7 @@ impl CoreBuilder {
             });
         }
 
-        anyhow::bail!(
-            "Bitcoin Core not found. Please set CORE_PATH or install Core binaries."
-        )
+        anyhow::bail!("Bitcoin Core not found. Please set CORE_PATH or install Core binaries.")
     }
 
     /// Find Core binaries in cache directory
@@ -211,7 +211,7 @@ impl CoreBuilder {
 
     /// Ensure Core is built and available
     /// This will find existing Core or build it if needed
-    pub async fn ensure_core_built(&self, version: Option<&str>) -> Result<CoreBinaries> {
+    pub async fn ensure_core_built(&self, _version: Option<&str>) -> Result<CoreBinaries> {
         // Try to find existing first
         match self.find_existing_core() {
             Ok(binaries) => {
@@ -255,13 +255,3 @@ mod tests {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-

@@ -67,6 +67,10 @@ benchmark-helpers = ["differential"]
 # Additional testing utilities if needed
 proptest = "1.5"
 
+# Local development: Use .cargo/config.toml to override dependencies with local paths
+# This ensures bllvm-node (which uses published bllvm-protocol) gets the local version
+# For CI jobs that checkout dependencies, .cargo/config.toml is created automatically
+
 # Benchmark targets - Consensus layer
 [[bench]]
 name = "hash_operations"
