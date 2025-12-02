@@ -1,11 +1,11 @@
 [package]
-name = "bllvm-bench"
+name = "blvm-bench"
 version = "0.1.0"
 edition = "2021"
 authors = ["Bitcoin Commons Team"]
 description = "Development-only benchmarking suite for Bitcoin Commons BLLVM ecosystem"
 license = "MIT"
-repository = "https://github.com/BTCDecoded/bllvm-bench"
+repository = "https://github.com/BTCDecoded/blvm-bench"
 homepage = "https://btcdecoded.org"
 keywords = ["bitcoin", "benchmarking", "performance", "testing"]
 categories = ["development-tools", "algorithms"]
