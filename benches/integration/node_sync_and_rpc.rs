@@ -6,7 +6,7 @@
 //! 3. Runs basic bitcoin-cli compatible RPC commands
 //! 4. Measures performance
 
-use bllvm_consensus::{tx_inputs, tx_outputs};
+use blvm_consensus::{tx_inputs, tx_outputs};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
@@ -79,9 +79,9 @@ impl RpcClient {
 async fn setup_node(
     data_dir: PathBuf,
     rpc_port: u16,
-) -> anyhow::Result<(Arc<bllvm_node::node::Node>, RpcClient)> {
-    use bllvm_node::node::Node;
-    use bllvm_protocol::ProtocolVersion;
+) -> anyhow::Result<(Arc<blvm_node::node::Node>, RpcClient)> {
+    use blvm_node::node::Node;
+    use blvm_protocol::ProtocolVersion;
     let network_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
     let rpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), rpc_port);
     // Create node in regtest mode
@@ -96,14 +96,14 @@ async fn setup_node(
     // We need to start it, but since node.rpc() returns &RpcManager and start() needs &mut,
     // we'll create a new RPC manager with the same configuration
     // For benchmarking, we'll use the node's data directory to recreate storage
-    let storage_arc = Arc::new(bllvm_node::storage::Storage::new(
+    let storage_arc = Arc::new(blvm_node::storage::Storage::new(
         data_dir.to_str().unwrap(),
     )?);
-    let mempool_arc = Arc::new(bllvm_node::node::mempool::MempoolManager::new());
+    let mempool_arc = Arc::new(blvm_node::node::mempool::MempoolManager::new());
     // Network manager doesn't implement Clone, so we'll create a minimal one
-    let network_arc = Arc::new(bllvm_node::network::NetworkManager::new(network_addr));
+    let network_arc = Arc::new(blvm_node::network::NetworkManager::new(network_addr));
 
-    let mut rpc_mgr = bllvm_node::rpc::RpcManager::new(rpc_addr)
+    let mut rpc_mgr = blvm_node::rpc::RpcManager::new(rpc_addr)
         .with_dependencies(storage_arc, mempool_arc)
         .with_network_manager(network_arc);
     tokio::spawn(async move {
@@ -122,12 +122,12 @@ async fn setup_node(
 /// Generate blocks using storage and consensus directly
 /// This is a simplified approach for benchmarking
 async fn generate_blocks_via_storage(
-    storage: &bllvm_node::storage::Storage,
-    _protocol: &bllvm_protocol::BitcoinProtocolEngine,
+    storage: &blvm_node::storage::Storage,
+    _protocol: &blvm_protocol::BitcoinProtocolEngine,
     target: u64,
 ) -> anyhow::Result<()> {
-    use bllvm_protocol::types::BlockHeader;
-    use bllvm_protocol::Block;
+    use blvm_protocol::types::BlockHeader;
+    use blvm_protocol::Block;
     // Get current height
     let current_height = storage.chain().get_height()?.unwrap_or(0);
     for height in current_height..(current_height + target) {
@@ -140,10 +140,10 @@ async fn generate_blocks_via_storage(
             ([0u8; 32], 0x207fffff) // Regtest difficulty
         };
         // Create a simple coinbase transaction
-        let coinbase_tx = bllvm_protocol::Transaction {
+        let coinbase_tx = blvm_protocol::Transaction {
             version: 1,
-            inputs: bllvm_protocol::tx_inputs![],
-            outputs: bllvm_protocol::tx_outputs![bllvm_protocol::TransactionOutput {
+            inputs: blvm_protocol::tx_inputs![],
+            outputs: blvm_protocol::tx_outputs![blvm_protocol::TransactionOutput {
                 value: 5000000000, // 50 BTC
                 script_pubkey: vec![
                     0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -154,7 +154,7 @@ async fn generate_blocks_via_storage(
         };
         // Calculate merkle root
         let mut txs = vec![coinbase_tx];
-        use bllvm_protocol::mining::calculate_merkle_root;
+        use blvm_protocol::mining::calculate_merkle_root;
         let merkle_root = calculate_merkle_root(&mut txs)
             .map_err(|e| anyhow::anyhow!("Failed to calculate merkle root: {}", e))?;
         // Create block header

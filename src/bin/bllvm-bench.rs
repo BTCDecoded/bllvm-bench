@@ -1,15 +1,15 @@
-//! bllvm-bench CLI tool
+//! blvm-bench CLI tool
 //!
 //! Command-line interface for running benchmarks
 
 use anyhow::{Context, Result};
-use bllvm_bench::shell;
+use blvm_bench::shell;
 use clap::{Parser, Subcommand};
 use std::process::{Command, Stdio};
 
 #[derive(Parser)]
-#[command(name = "bllvm-bench")]
-#[command(about = "Bitcoin Commons BLLVM Benchmarking Suite")]
+#[command(name = "blvm-bench")]
+#[command(about = "Bitcoin Commons BLVM Benchmarking Suite")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

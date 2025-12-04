@@ -33,10 +33,8 @@ make csv         # Generate CSV report
 
 ## Automated Benchmarks
 
-Benchmarks run automatically via GitHub Actions on a self-hosted runner:
-- **Scheduled**: Daily at 2 AM UTC
+Benchmarks run manually via GitHub Actions on a self-hosted runner:
 - **Manual**: Trigger via Actions tab
-- **On Push**: When benchmark code changes
 
 Results are automatically:
 - Generated as consolidated JSON

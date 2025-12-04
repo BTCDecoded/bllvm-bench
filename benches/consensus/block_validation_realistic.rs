@@ -7,10 +7,10 @@
 //! 3. Forces full script verification (no assume-valid optimization)
 //! 4. Matches Core's ConnectBlock benchmark methodology
 
-use bllvm_consensus::block::{calculate_tx_id, connect_block};
-use bllvm_consensus::segwit::Witness;
-use bllvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
-use bllvm_consensus::{
+use blvm_consensus::block::{calculate_tx_id, connect_block};
+use blvm_consensus::segwit::Witness;
+use blvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
+use blvm_consensus::{
     tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
     TransactionOutput, UtxoSet, UTXO,
 };
@@ -204,7 +204,7 @@ fn benchmark_connect_block_realistic_100tx(c: &mut Criterion) {
                 black_box(utxo_set.clone()),
                 black_box(1), // Height 1 = no assume-valid optimization
                 black_box(None),
-                black_box(bllvm_consensus::types::Network::Mainnet),
+                black_box(blvm_consensus::types::Network::Mainnet),
             );
             // Ensure we're actually validating - use result to ensure it's computed
             black_box(result);
@@ -227,7 +227,7 @@ fn benchmark_connect_block_realistic_1000tx(c: &mut Criterion) {
                 black_box(utxo_set.clone()),
                 black_box(1), // Height 1 = no assume-valid optimization
                 black_box(None),
-                black_box(bllvm_consensus::types::Network::Mainnet),
+                black_box(blvm_consensus::types::Network::Mainnet),
             );
             // Ensure we're actually validating - use result to ensure it's computed
             black_box(result);

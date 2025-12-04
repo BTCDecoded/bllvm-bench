@@ -1,7 +1,7 @@
 //! Script Verification Benchmarks
 //! Measures script execution and verification performance
 
-use bllvm_consensus::script::{eval_script, verify_script};
+use blvm_consensus::script::{eval_script, verify_script};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 /// Create a simple script for verification

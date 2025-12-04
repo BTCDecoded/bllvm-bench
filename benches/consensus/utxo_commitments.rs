@@ -1,7 +1,7 @@
 #[cfg(feature = "utxo-commitments")]
-use bllvm_consensus::utxo_commitments::data_structures::UtxoCommitment;
-use bllvm_consensus::utxo_commitments::verification::{verify_header_chain, verify_supply};
-use bllvm_consensus::{BlockHeader, Natural};
+use blvm_consensus::utxo_commitments::data_structures::UtxoCommitment;
+use blvm_consensus::utxo_commitments::verification::{verify_header_chain, verify_supply};
+use blvm_consensus::{BlockHeader, Natural};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn create_test_commitment(height: Natural) -> UtxoCommitment {

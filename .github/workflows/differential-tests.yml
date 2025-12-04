@@ -1,32 +1,18 @@
 name: Differential Tests
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'tests/integration/**'
-      - 'src/differential.rs'
-      - 'src/core_builder.rs'
-      - 'src/regtest_node.rs'
-      - 'src/core_rpc_client.rs'
-      - 'Cargo.toml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'tests/integration/**'
-      - 'src/differential.rs'
-      - 'src/core_builder.rs'
-      - 'src/regtest_node.rs'
-      - 'src/core_rpc_client.rs'
-      - 'Cargo.toml'
   workflow_dispatch:
-  schedule:
-    # Run daily at 3 AM UTC (after benchmarks at 2 AM)
-    - cron: '0 3 * * *'
 
 jobs:
   differential:
     runs-on: [self-hosted, Linux, X64, perf]
+    # Timeout estimate:
+    # - BIP tests (4 tests): ~2 minutes (regtest node startup + validation)
+    # - Historical blocks (default 100): ~1 minute (RPC calls + validation)
+    # - Total default: ~3-5 minutes
+    # - For 1000 blocks: ~5-15 minutes
+    # - For 10000 blocks: ~30-90 minutes
+    # 60 minutes allows for testing up to ~10k blocks
     timeout-minutes: 60
     steps:
       - name: Checkout repository

@@ -1,6 +1,6 @@
-use bllvm_consensus::block::connect_block;
-use bllvm_consensus::segwit::Witness;
-use bllvm_consensus::{
+use blvm_consensus::block::connect_block;
+use blvm_consensus::segwit::Witness;
+use blvm_consensus::{
     tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
     TransactionOutput, UtxoSet, UTXO,
 };
@@ -38,7 +38,7 @@ fn benchmark_connect_block(c: &mut Criterion) {
                 black_box(utxo_set.clone()),
                 black_box(0),
                 black_box(None),
-                black_box(bllvm_consensus::types::Network::Mainnet),
+                black_box(blvm_consensus::types::Network::Mainnet),
             );
             // Coinbase-only block, so validation should succeed
         })
@@ -115,7 +115,7 @@ fn benchmark_connect_block_multi_tx(c: &mut Criterion) {
                 black_box(utxo_set.clone()),
                 black_box(0),
                 black_box(None),
-                black_box(bllvm_consensus::types::Network::Mainnet),
+                black_box(blvm_consensus::types::Network::Mainnet),
             );
             // Now with valid UTXOs, this should do actual validation work
         })

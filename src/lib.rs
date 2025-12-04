@@ -1,4 +1,4 @@
-//! bllvm-bench - Development-only benchmarking suite for Bitcoin Commons BLLVM
+//! blvm-bench - Development-only benchmarking suite for Bitcoin Commons BLLVM
 //!
 //! This crate provides comprehensive benchmarking tools for the BLLVM ecosystem.
 //! While it's a development-only crate, it supports testing in production mode

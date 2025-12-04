@@ -1,10 +1,10 @@
 //! Test helpers for differential testing
 
-use bllvm_consensus::{
+use blvm_consensus::{
     tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
     TransactionOutput,
 };
-use bllvm_consensus::types::Network;
+use blvm_consensus::types::Network;
 
 /// Create a test block with coinbase transaction
 pub fn create_test_block(height: u64) -> Block {
@@ -95,11 +95,11 @@ pub fn create_bip90_violation_block(height: u64, invalid_version: i32) -> Block 
     block
 }
 
-/// Validate block with BLLVM
-pub fn validate_bllvm_block(block: &Block, height: u64, network: Network) -> bllvm_consensus::block::BlockValidationResult {
-    use bllvm_consensus::block::connect_block;
-    use bllvm_consensus::segwit::Witness;
-    use bllvm_consensus::UtxoSet;
+    /// Validate block with BLVM
+pub fn validate_blvm_block(block: &Block, height: u64, network: Network) -> blvm_consensus::block::BlockValidationResult {
+    use blvm_consensus::block::connect_block;
+    use blvm_consensus::segwit::Witness;
+    use blvm_consensus::UtxoSet;
 
     let witnesses: Vec<Witness> = block.transactions.iter().map(|_| Vec::new()).collect();
     let utxo_set = UtxoSet::new();

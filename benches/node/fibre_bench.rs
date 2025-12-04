@@ -2,8 +2,8 @@
 //!
 //! Benchmarks FIBRE block encoding, FEC encoding/decoding, and UDP packet handling.
 
-use bllvm_node::network::fibre::FibreRelay;
-use bllvm_protocol::{Block, BlockHeader};
+use blvm_node::network::fibre::FibreRelay;
+use blvm_protocol::{Block, BlockHeader};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use sha2::Digest;
 use std::time::Duration;
@@ -16,10 +16,10 @@ fn create_test_block(size_kb: usize) -> Block {
     // Create minimal transactions to approximate size
     for _ in 0..tx_count.min(1000) {
         // Cap at 1000 txs
-        transactions.push(bllvm_protocol::Transaction {
+        transactions.push(blvm_protocol::Transaction {
             version: 1,
             inputs: vec![],
-            outputs: vec![bllvm_protocol::TransactionOutput {
+            outputs: vec![blvm_protocol::TransactionOutput {
                 value: 1000,
                 script_pubkey: vec![0x76, 0xa9, 0x14, 0x00; 20].into(),
             }],
@@ -84,7 +84,7 @@ fn bench_fibre_fec_encoding(c: &mut Criterion) {
 }
 
 fn bench_fibre_chunk_serialization(c: &mut Criterion) {
-    use bllvm_protocol::fibre::FecChunk;
+    use blvm_protocol::fibre::FecChunk;
 
     let mut group = c.benchmark_group("fibre_chunk_serialization");
     group.measurement_time(Duration::from_secs(5));
@@ -96,9 +96,9 @@ fn bench_fibre_chunk_serialization(c: &mut Criterion) {
 
         // Create chunk manually (serialize/deserialize test)
         let mut packet = Vec::new();
-        packet.extend_from_slice(&bllvm_protocol::fibre::FIBRE_MAGIC);
-        packet.push(bllvm_protocol::fibre::FIBRE_VERSION);
-        packet.push(bllvm_protocol::fibre::PACKET_TYPE_CHUNK);
+        packet.extend_from_slice(&blvm_protocol::fibre::FIBRE_MAGIC);
+        packet.push(blvm_protocol::fibre::FIBRE_VERSION);
+        packet.push(blvm_protocol::fibre::PACKET_TYPE_CHUNK);
         packet.extend_from_slice(&block_hash);
         packet.extend_from_slice(&12345u64.to_be_bytes());
         packet.extend_from_slice(&0u32.to_be_bytes());

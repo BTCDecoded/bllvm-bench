@@ -6,9 +6,9 @@
 //! 2. Calls check_block (structure validation only, no scripts)
 //! 3. Matches Core's CheckBlock operation (not connect_block)
 
-use bllvm_consensus::block::check_block;
-use bllvm_consensus::mining::calculate_merkle_root;
-use bllvm_consensus::{
+use blvm_consensus::block::check_block;
+use blvm_consensus::mining::calculate_merkle_root;
+use blvm_consensus::{
     tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
     TransactionOutput,
 };

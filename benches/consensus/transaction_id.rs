@@ -1,8 +1,8 @@
 //! Transaction ID Benchmark
 //! Matches Core's TransactionIdCalculation benchmark exactly
 
-use bllvm_consensus::block::calculate_tx_id;
-use bllvm_consensus::{
+use blvm_consensus::block::calculate_tx_id;
+use blvm_consensus::{
     tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};

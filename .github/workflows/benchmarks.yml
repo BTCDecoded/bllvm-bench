@@ -1,7 +1,7 @@
 name: Run Benchmarks (Parallel)
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:  # Manual trigger only
     inputs:
       speed_fast:
         description: 'Run fast benchmarks (< 2 min each)'
@@ -28,16 +28,6 @@ on:
           - fair
           - core
           - commons
-  schedule:
-    # Run daily at 2 AM UTC
-    - cron: '0 2 * * *'
-  push:
-    branches:
-      - main
-    paths:
-      - 'scripts/**'
-      - 'benches/**'
-      - '.github/workflows/benchmarks.yml'
 
 jobs:
   # Setup job - clones repos and builds dependencies

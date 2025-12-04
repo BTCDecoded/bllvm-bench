@@ -1,7 +1,7 @@
-use bllvm_consensus::mempool::{
+use blvm_consensus::mempool::{
     accept_to_memory_pool, is_standard_tx, replacement_checks, Mempool,
 };
-use bllvm_consensus::{
+use blvm_consensus::{
     tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput, UtxoSet,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -59,11 +59,11 @@ fn benchmark_mempool_acceptance(c: &mut Criterion) {
     let tx = create_test_transaction();
     // Create UTXO for the transaction input (fair comparison - needs valid UTXO)
     let mut utxo_set = UtxoSet::new();
-    let outpoint = bllvm_consensus::OutPoint {
+    let outpoint = blvm_consensus::OutPoint {
         hash: [1; 32], // Matches tx input
         index: 0,
     };
-    let utxo = bllvm_consensus::UTXO {
+    let utxo = blvm_consensus::UTXO {
         value: 10_000_000_000,
         script_pubkey: vec![0x51], // Simple script
         height: 0,
@@ -93,12 +93,12 @@ fn benchmark_mempool_acceptance_complex(c: &mut Criterion) {
     // Create 400 transactions (matches Core's MempoolCheck scale)
     for i in 0..400 {
         let tx = create_complex_transaction(5, 3);
-        let tx_id = bllvm_consensus::block::calculate_tx_id(&tx);
+        let tx_id = blvm_consensus::block::calculate_tx_id(&tx);
         mempool.insert(tx_id);
 
         // Create UTXOs for all transaction inputs
         for input in &tx.inputs {
-            let utxo = bllvm_consensus::UTXO {
+            let utxo = blvm_consensus::UTXO {
                 value: 10_000_000_000,
                 script_pubkey: vec![0x51], // Simple script
                 height: 0,
@@ -163,7 +163,7 @@ fn benchmark_mempool_eviction(c: &mut Criterion) {
         let mut tx = create_test_transaction();
         // Make each transaction unique
         tx.inputs[0].prevout.hash[0] = (i % 256) as u8;
-        let tx_id = bllvm_consensus::block::calculate_tx_id(&tx);
+        let tx_id = blvm_consensus::block::calculate_tx_id(&tx);
         mempool.insert(tx_id);
     }
 
@@ -221,7 +221,7 @@ fn benchmark_is_standard_tx_400tx(c: &mut Criterion) {
         transactions.push(tx);
 
         // Create UTXO for this transaction
-        let outpoint = bllvm_consensus::OutPoint {
+        let outpoint = blvm_consensus::OutPoint {
             hash: {
                 let mut h = [0u8; 32];
                 h[0] = (i % 256) as u8;
@@ -229,7 +229,7 @@ fn benchmark_is_standard_tx_400tx(c: &mut Criterion) {
             },
             index: 0,
         };
-        let utxo = bllvm_consensus::UTXO {
+        let utxo = blvm_consensus::UTXO {
             value: 10_000_000_000,
             script_pubkey: vec![0x51],
             height: 0,
@@ -246,11 +246,11 @@ fn benchmark_is_standard_tx_400tx(c: &mut Criterion) {
                 // Check if standard (part of MempoolCheck)
                 black_box(is_standard_tx(black_box(tx)));
                 // Check transaction structure (part of MempoolCheck)
-                black_box(bllvm_consensus::transaction::check_transaction(black_box(
+                black_box(blvm_consensus::transaction::check_transaction(black_box(
                     tx,
                 )));
                 // Check inputs against UTXO set (part of MempoolCheck)
-                black_box(bllvm_consensus::transaction::check_tx_inputs(
+                black_box(blvm_consensus::transaction::check_tx_inputs(
                     black_box(tx),
                     black_box(&utxo_set),
                     black_box(0),
@@ -259,7 +259,7 @@ fn benchmark_is_standard_tx_400tx(c: &mut Criterion) {
                 // For simple transactions without witnesses, verify_script does basic checks
                 for input in &tx.inputs {
                     if let Some(utxo) = utxo_set.get(&input.prevout) {
-                        black_box(bllvm_consensus::script::verify_script(
+                        black_box(blvm_consensus::script::verify_script(
                             black_box(&input.script_sig),
                             black_box(&utxo.script_pubkey),
                             black_box(None), // No witness for simple transactions
@@ -285,14 +285,14 @@ fn benchmark_replacement_checks_mempool(c: &mut Criterion) {
         let mut tx = create_test_transaction();
         tx.inputs[0].prevout.hash[0] = (i % 256) as u8;
         tx.inputs[0].sequence = 0xfffffffe; // RBF enabled
-        let tx_id = bllvm_consensus::block::calculate_tx_id(&tx);
+        let tx_id = blvm_consensus::block::calculate_tx_id(&tx);
         mempool.insert(tx_id);
         mempool_txs.push(tx);
     }
 
     // Create UTXOs for all transactions
     for (i, tx) in mempool_txs.iter().enumerate() {
-        let outpoint = bllvm_consensus::OutPoint {
+        let outpoint = blvm_consensus::OutPoint {
             hash: {
                 let mut h = [0u8; 32];
                 h[0] = (i % 256) as u8;
@@ -300,7 +300,7 @@ fn benchmark_replacement_checks_mempool(c: &mut Criterion) {
             },
             index: 0,
         };
-        let utxo = bllvm_consensus::UTXO {
+        let utxo = blvm_consensus::UTXO {
             value: 10_000_000_000,
             script_pubkey: vec![0x51],
             height: 0,
@@ -315,11 +315,11 @@ fn benchmark_replacement_checks_mempool(c: &mut Criterion) {
             // This includes: structure check, input validation, script verification, RBF checks
             for tx in &mempool_txs {
                 // Check transaction structure (part of MempoolCheck)
-                black_box(bllvm_consensus::transaction::check_transaction(black_box(
+                black_box(blvm_consensus::transaction::check_transaction(black_box(
                     tx,
                 )));
                 // Check inputs against UTXO set (part of MempoolCheck)
-                black_box(bllvm_consensus::transaction::check_tx_inputs(
+                black_box(blvm_consensus::transaction::check_tx_inputs(
                     black_box(tx),
                     black_box(&utxo_set),
                     black_box(0),
@@ -330,7 +330,7 @@ fn benchmark_replacement_checks_mempool(c: &mut Criterion) {
                 // For simple transactions without witnesses, verify_script does basic checks
                 for input in &tx.inputs {
                     if let Some(utxo) = utxo_set.get(&input.prevout) {
-                        black_box(bllvm_consensus::script::verify_script(
+                        black_box(blvm_consensus::script::verify_script(
                             black_box(&input.script_sig),
                             black_box(&utxo.script_pubkey),
                             black_box(None), // No witness for simple transactions

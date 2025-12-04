@@ -4,8 +4,8 @@
 mod helpers {
     //! Test helpers for differential testing
 
-    use bllvm_consensus::types::Network;
-    use bllvm_consensus::{
+    use blvm_consensus::types::Network;
+    use blvm_consensus::{
         tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
         TransactionOutput,
     };
@@ -99,21 +99,21 @@ mod helpers {
         block
     }
 
-    /// Validate block with BLLVM
-    pub fn validate_bllvm_block(
+    /// Validate block with BLVM
+    pub fn validate_blvm_block(
         block: &Block,
         height: u64,
         network: Network,
-    ) -> bllvm_consensus::types::ValidationResult {
-        use bllvm_consensus::block::connect_block;
-        use bllvm_consensus::segwit::Witness;
-        use bllvm_consensus::UtxoSet;
+    ) -> blvm_consensus::types::ValidationResult {
+        use blvm_consensus::block::connect_block;
+        use blvm_consensus::segwit::Witness;
+        use blvm_consensus::UtxoSet;
 
         let witnesses: Vec<Witness> = block.transactions.iter().map(|_| Vec::new()).collect();
         let utxo_set = UtxoSet::new();
         match connect_block(block, &witnesses, utxo_set, height, None, network) {
             Ok((result, _)) => result,
-            Err(e) => bllvm_consensus::types::ValidationResult::Invalid(format!("{:?}", e)),
+            Err(e) => blvm_consensus::types::ValidationResult::Invalid(format!("{:?}", e)),
         }
     }
 }
@@ -126,8 +126,8 @@ use helpers::*;
 async fn create_rpc_client(
     preferred_network: Option<BitcoinNetwork>,
 ) -> Result<(CoreRpcClient, BitcoinNetwork)> {
-    use bllvm_bench::core_builder::CoreBuilder;
-    use bllvm_bench::core_rpc_client::NodeDiscovery;
+    use blvm_bench::core_builder::CoreBuilder;
+    use blvm_bench::core_rpc_client::NodeDiscovery;
 
     // Check if auto-discovery is disabled (explicit config takes precedence)
     let auto_discover = std::env::var("BITCOIN_AUTO_DISCOVER")
@@ -175,7 +175,7 @@ async fn create_rpc_client(
 async fn create_rpc_client_local(
     preferred_network: Option<BitcoinNetwork>,
 ) -> Result<(CoreRpcClient, BitcoinNetwork)> {
-    use bllvm_bench::core_builder::CoreBuilder;
+    use blvm_bench::core_builder::CoreBuilder;
 
     // Try to find local node or start regtest
     let builder = CoreBuilder::new();
@@ -202,17 +202,17 @@ async fn create_rpc_client_local(
 #[cfg(feature = "differential")]
 use anyhow::Result;
 #[cfg(feature = "differential")]
-use bllvm_bench::core_builder::CoreBuilder;
+use blvm_bench::core_builder::CoreBuilder;
 #[cfg(feature = "differential")]
-use bllvm_bench::core_rpc_client::BitcoinNetwork;
+use blvm_bench::core_rpc_client::BitcoinNetwork;
 #[cfg(feature = "differential")]
-use bllvm_bench::core_rpc_client::{CoreRpcClient, RpcConfig};
+use blvm_bench::core_rpc_client::{CoreRpcClient, RpcConfig};
 #[cfg(feature = "differential")]
-use bllvm_bench::differential::{compare_block_validation, format_comparison_result};
+use blvm_bench::differential::{compare_block_validation, format_comparison_result};
 #[cfg(feature = "differential")]
-use bllvm_bench::regtest_node::RegtestNode;
+use blvm_bench::regtest_node::RegtestNode;
 #[cfg(feature = "differential")]
-use bllvm_consensus::types::Network;
+use blvm_consensus::types::Network;
 #[cfg(feature = "differential")]
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "differential")]
@@ -224,7 +224,7 @@ use std::time::SystemTime;
 struct TestResult {
     name: String,
     status: String,
-    bllvm_result: String,
+    blvm_result: String,
     core_result: String,
     match_result: bool,
     duration_ms: u64,
@@ -350,11 +350,11 @@ async fn test_bip30_differential() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = match bllvm_result {
-        bllvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
-        bllvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = match blvm_result {
+        blvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
+        blvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
     };
 
     // Compare with Core
@@ -362,7 +362,7 @@ async fn test_bip30_differential() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -370,8 +370,8 @@ async fn test_bip30_differential() -> Result<()> {
     println!("{}", format_comparison_result(&comparison));
 
     // Record test result
-    use bllvm_bench::differential::{CoreValidationResult, ValidationResult};
-    let bllvm_result_str = match &bllvm_validation {
+    use blvm_bench::differential::{CoreValidationResult, ValidationResult};
+    let blvm_result_str = match &blvm_validation {
         ValidationResult::Valid => "Valid".to_string(),
         ValidationResult::Invalid(msg) => format!("Invalid({})", msg),
     };
@@ -383,7 +383,7 @@ async fn test_bip30_differential() -> Result<()> {
     record_test_result(TestResult {
         name: "test_bip30_differential".to_string(),
         status: "passed".to_string(),
-        bllvm_result: bllvm_result_str,
+        blvm_result: blvm_result_str,
         core_result: core_result_str,
         match_result: comparison.matches,
         duration_ms: 0, // Will be set by test wrapper if we use macro
@@ -392,7 +392,7 @@ async fn test_bip30_differential() -> Result<()> {
 
     // Both should reject (BIP30 violation)
     assert!(
-        !comparison.matches || matches!(bllvm_validation, ValidationResult::Invalid(_)),
+        !comparison.matches || matches!(blvm_validation, ValidationResult::Invalid(_)),
         "CRITICAL BUG: BIP30 violation should be rejected by both implementations"
     );
 
@@ -431,11 +431,11 @@ async fn test_bip34_differential() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = match bllvm_result {
-        bllvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
-        bllvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = match blvm_result {
+        blvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
+        blvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
     };
 
     // Compare with Core
@@ -443,7 +443,7 @@ async fn test_bip34_differential() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -451,8 +451,8 @@ async fn test_bip34_differential() -> Result<()> {
     println!("{}", format_comparison_result(&comparison));
 
     // Record test result
-    use bllvm_bench::differential::{CoreValidationResult, ValidationResult};
-    let bllvm_result_str = match &bllvm_validation {
+    use blvm_bench::differential::{CoreValidationResult, ValidationResult};
+    let blvm_result_str = match &blvm_validation {
         ValidationResult::Valid => "Valid".to_string(),
         ValidationResult::Invalid(msg) => format!("Invalid({})", msg),
     };
@@ -464,7 +464,7 @@ async fn test_bip34_differential() -> Result<()> {
     record_test_result(TestResult {
         name: "test_bip34_differential".to_string(),
         status: "passed".to_string(),
-        bllvm_result: bllvm_result_str,
+        blvm_result: blvm_result_str,
         core_result: core_result_str,
         match_result: comparison.matches,
         duration_ms: 0,
@@ -473,7 +473,7 @@ async fn test_bip34_differential() -> Result<()> {
 
     // Both should reject (BIP34 violation)
     assert!(
-        !comparison.matches || matches!(bllvm_validation, ValidationResult::Invalid(_)),
+        !comparison.matches || matches!(blvm_validation, ValidationResult::Invalid(_)),
         "CRITICAL BUG: BIP34 violation should be rejected by both implementations"
     );
 
@@ -512,11 +512,11 @@ async fn test_bip90_differential() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = match bllvm_result {
-        bllvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
-        bllvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = match blvm_result {
+        blvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
+        blvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
     };
 
     // Compare with Core
@@ -524,7 +524,7 @@ async fn test_bip90_differential() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -532,8 +532,8 @@ async fn test_bip90_differential() -> Result<()> {
     println!("{}", format_comparison_result(&comparison));
 
     // Record test result
-    use bllvm_bench::differential::{CoreValidationResult, ValidationResult};
-    let bllvm_result_str = match &bllvm_validation {
+    use blvm_bench::differential::{CoreValidationResult, ValidationResult};
+    let blvm_result_str = match &blvm_validation {
         ValidationResult::Valid => "Valid".to_string(),
         ValidationResult::Invalid(msg) => format!("Invalid({})", msg),
     };
@@ -545,7 +545,7 @@ async fn test_bip90_differential() -> Result<()> {
     record_test_result(TestResult {
         name: "test_bip90_differential".to_string(),
         status: "passed".to_string(),
-        bllvm_result: bllvm_result_str,
+        blvm_result: blvm_result_str,
         core_result: core_result_str,
         match_result: comparison.matches,
         duration_ms: 0,
@@ -554,7 +554,7 @@ async fn test_bip90_differential() -> Result<()> {
 
     // Both should reject (BIP90 violation)
     assert!(
-        !comparison.matches || matches!(bllvm_validation, ValidationResult::Invalid(_)),
+        !comparison.matches || matches!(blvm_validation, ValidationResult::Invalid(_)),
         "CRITICAL BUG: BIP90 violation should be rejected by both implementations"
     );
 
@@ -593,11 +593,11 @@ async fn test_valid_block_accepted() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = match bllvm_result {
-        bllvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
-        bllvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = match blvm_result {
+        blvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
+        blvm_consensus::types::ValidationResult::Invalid(msg) => ValidationResult::Invalid(msg),
     };
 
     // Compare with Core
@@ -605,7 +605,7 @@ async fn test_valid_block_accepted() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -613,8 +613,8 @@ async fn test_valid_block_accepted() -> Result<()> {
     println!("{}", format_comparison_result(&comparison));
 
     // Record test result
-    use bllvm_bench::differential::{CoreValidationResult, ValidationResult};
-    let bllvm_result_str = match &bllvm_validation {
+    use blvm_bench::differential::{CoreValidationResult, ValidationResult};
+    let blvm_result_str = match &blvm_validation {
         ValidationResult::Valid => "Valid".to_string(),
         ValidationResult::Invalid(msg) => format!("Invalid({})", msg),
     };
@@ -626,7 +626,7 @@ async fn test_valid_block_accepted() -> Result<()> {
     record_test_result(TestResult {
         name: "test_valid_block_accepted".to_string(),
         status: "passed".to_string(),
-        bllvm_result: bllvm_result_str,
+        blvm_result: blvm_result_str,
         core_result: core_result_str,
         match_result: comparison.matches,
         duration_ms: 0,
@@ -641,15 +641,15 @@ async fn test_valid_block_accepted() -> Result<()> {
 }
 
 /// Test historical blocks: Validate real blockchain blocks
-/// This is TRUE differential testing - comparing BLLVM vs Core on actual historical blocks
+/// This is TRUE differential testing - comparing BLVM vs Core on actual historical blocks
 #[tokio::test]
 #[cfg(feature = "differential")]
 async fn test_historical_blocks_differential() -> Result<()> {
-    use bllvm_bench::differential::{CoreValidationResult, ValidationResult};
-    use bllvm_consensus::block::connect_block;
-    use bllvm_consensus::segwit::Witness;
-    use bllvm_consensus::serialization::block::deserialize_block_with_witnesses;
-    use bllvm_consensus::UtxoSet;
+    use blvm_bench::differential::{CoreValidationResult, ValidationResult};
+    use blvm_consensus::block::connect_block;
+    use blvm_consensus::segwit::Witness;
+    use blvm_consensus::serialization::block::deserialize_block_with_witnesses;
+    use blvm_consensus::UtxoSet;
 
     // Create RPC client (supports both local and remote nodes)
     let (rpc_client, network) = match create_rpc_client(Some(BitcoinNetwork::Mainnet)).await {
@@ -787,8 +787,8 @@ async fn test_historical_blocks_differential() -> Result<()> {
             }
         };
 
-        // Validate with BLLVM
-        let bllvm_result = match connect_block(
+        // Validate with BLVM
+        let blvm_result = match connect_block(
             &block,
             &witnesses,
             utxo_set.clone(),
@@ -799,8 +799,8 @@ async fn test_historical_blocks_differential() -> Result<()> {
             Ok((result, new_utxo_set)) => {
                 utxo_set = new_utxo_set; // Update UTXO set for next block
                 match result {
-                    bllvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
-                    bllvm_consensus::types::ValidationResult::Invalid(msg) => {
+                    blvm_consensus::types::ValidationResult::Valid => ValidationResult::Valid,
+                    blvm_consensus::types::ValidationResult::Invalid(msg) => {
                         ValidationResult::Invalid(msg)
                     }
                 }
@@ -817,7 +817,7 @@ async fn test_historical_blocks_differential() -> Result<()> {
 
         // Compare results
         let matches = matches!(
-            (&bllvm_result, &core_result),
+            (&blvm_result, &core_result),
             (ValidationResult::Valid, CoreValidationResult::Valid)
                 | (
                     ValidationResult::Invalid(_),
@@ -829,12 +829,12 @@ async fn test_historical_blocks_differential() -> Result<()> {
             divergences.push((
                 height,
                 block_hash,
-                bllvm_result.clone(),
+                blvm_result.clone(),
                 core_result.clone(),
             ));
             eprintln!(
-                "❌ DIVERGENCE at height {}: BLLVM={:?}, Core={:?}",
-                height, bllvm_result, core_result
+                "❌ DIVERGENCE at height {}: BLVM={:?}, Core={:?}",
+                height, blvm_result, core_result
             );
         } else {
             matched += 1;
@@ -862,7 +862,7 @@ async fn test_historical_blocks_differential() -> Result<()> {
             "failed"
         }
         .to_string(),
-        bllvm_result: format!("Tested {} blocks", tested),
+        blvm_result: format!("Tested {} blocks", tested),
         core_result: format!("Matched {} blocks", matched),
         match_result: divergences.is_empty(),
         duration_ms: 0,
@@ -883,7 +883,7 @@ async fn test_historical_blocks_differential() -> Result<()> {
         println!("\n❌ Divergences found:");
         for (height, hash, bllvm, core) in divergences.iter().take(10) {
             println!(
-                "   Height {} ({}): BLLVM={:?}, Core={:?}",
+                "   Height {} ({}): BLVM={:?}, Core={:?}",
                 height, hash, bllvm, core
             );
         }

@@ -1,18 +1,18 @@
 //! BIP Differential Tests
 //!
-//! These tests verify that BLLVM and Bitcoin Core agree on BIP validation.
+//! These tests verify that BLVM and Bitcoin Core agree on BIP validation.
 //! They catch consensus divergences by comparing validation results.
 
 use anyhow::Result;
-use bllvm_consensus::types::Network;
+use blvm_consensus::types::Network;
 #[cfg(feature = "differential")]
-use bllvm_bench::core_builder::CoreBuilder;
+use blvm_bench::core_builder::CoreBuilder;
 #[cfg(feature = "differential")]
-use bllvm_bench::core_rpc_client::{CoreRpcClient, RpcConfig};
+use blvm_bench::core_rpc_client::{CoreRpcClient, RpcConfig};
 #[cfg(feature = "differential")]
-use bllvm_bench::differential::{compare_block_validation, ValidationResult, format_comparison_result};
+use blvm_bench::differential::{compare_block_validation, ValidationResult, format_comparison_result};
 #[cfg(feature = "differential")]
-use bllvm_bench::regtest_node::{RegtestNode, PortManager};
+use blvm_bench::regtest_node::{RegtestNode, PortManager};
 #[cfg(feature = "differential")]
 use crate::helpers::*;
 
@@ -40,12 +40,12 @@ async fn test_bip30_differential() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = if bllvm_result.is_valid() {
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = if blvm_result.is_valid() {
         ValidationResult::Valid
     } else {
-        ValidationResult::Invalid(format!("{:?}", bllvm_result))
+        ValidationResult::Invalid(format!("{:?}", blvm_result))
     };
 
     // Compare with Core
@@ -53,7 +53,7 @@ async fn test_bip30_differential() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -62,7 +62,7 @@ async fn test_bip30_differential() -> Result<()> {
 
     // Both should reject (BIP30 violation)
     assert!(
-        !comparison.matches || matches!(bllvm_validation, ValidationResult::Invalid(_)),
+        !comparison.matches || matches!(blvm_validation, ValidationResult::Invalid(_)),
         "CRITICAL BUG: BIP30 violation should be rejected by both implementations"
     );
 
@@ -91,12 +91,12 @@ async fn test_bip34_differential() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = if bllvm_result.is_valid() {
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = if blvm_result.is_valid() {
         ValidationResult::Valid
     } else {
-        ValidationResult::Invalid(format!("{:?}", bllvm_result))
+        ValidationResult::Invalid(format!("{:?}", blvm_result))
     };
 
     // Compare with Core
@@ -104,7 +104,7 @@ async fn test_bip34_differential() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -113,7 +113,7 @@ async fn test_bip34_differential() -> Result<()> {
 
     // Both should reject (BIP34 violation)
     assert!(
-        !comparison.matches || matches!(bllvm_validation, ValidationResult::Invalid(_)),
+        !comparison.matches || matches!(blvm_validation, ValidationResult::Invalid(_)),
         "CRITICAL BUG: BIP34 violation should be rejected by both implementations"
     );
 
@@ -142,12 +142,12 @@ async fn test_bip90_differential() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = if bllvm_result.is_valid() {
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = if blvm_result.is_valid() {
         ValidationResult::Valid
     } else {
-        ValidationResult::Invalid(format!("{:?}", bllvm_result))
+        ValidationResult::Invalid(format!("{:?}", blvm_result))
     };
 
     // Compare with Core
@@ -155,7 +155,7 @@ async fn test_bip90_differential() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;
@@ -164,7 +164,7 @@ async fn test_bip90_differential() -> Result<()> {
 
     // Both should reject (BIP90 violation)
     assert!(
-        !comparison.matches || matches!(bllvm_validation, ValidationResult::Invalid(_)),
+        !comparison.matches || matches!(blvm_validation, ValidationResult::Invalid(_)),
         "CRITICAL BUG: BIP90 violation should be rejected by both implementations"
     );
 
@@ -193,12 +193,12 @@ async fn test_valid_block_accepted() -> Result<()> {
     let height = 1;
     let network = Network::Mainnet;
 
-    // Validate with BLLVM
-    let bllvm_result = validate_bllvm_block(&block, height, network);
-    let bllvm_validation = if bllvm_result.is_valid() {
+    // Validate with BLVM
+    let blvm_result = validate_blvm_block(&block, height, network);
+    let blvm_validation = if blvm_result.is_valid() {
         ValidationResult::Valid
     } else {
-        ValidationResult::Invalid(format!("{:?}", bllvm_result))
+        ValidationResult::Invalid(format!("{:?}", blvm_result))
     };
 
     // Compare with Core
@@ -206,7 +206,7 @@ async fn test_valid_block_accepted() -> Result<()> {
         &block,
         height,
         network,
-        bllvm_validation.clone(),
+        blvm_validation.clone(),
         &rpc_client,
     )
     .await?;

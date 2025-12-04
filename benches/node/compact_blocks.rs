@@ -1,10 +1,10 @@
-use bllvm_consensus::{tx_inputs, tx_outputs, Block, BlockHeader, Transaction, TransactionOutput};
+use blvm_consensus::{tx_inputs, tx_outputs, Block, BlockHeader, Transaction, TransactionOutput};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use bllvm_node::network::compact_blocks::{
+use blvm_node::network::compact_blocks::{
     calculate_short_tx_id, calculate_tx_hash, create_compact_block,
     recommended_compact_block_version, should_prefer_compact_blocks,
 };
-use bllvm_node::network::transport::TransportType;
+use blvm_node::network::transport::TransportType;
 use std::collections::HashSet;
 
 fn create_test_block() -> Block {

@@ -1,5 +1,5 @@
-use bllvm_consensus::transaction::check_transaction;
-use bllvm_consensus::{
+use blvm_consensus::transaction::check_transaction;
+use blvm_consensus::{
     tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};

@@ -9,7 +9,7 @@
 //! - UTXO operations
 //! Run with: cargo bench --bench performance_focused --features production
 
-use bllvm_consensus::{
+use blvm_consensus::{
     block::connect_block, segwit::Witness, tx_inputs, tx_outputs, Block, BlockHeader, OutPoint,
     Transaction, TransactionInput, TransactionOutput, UtxoSet, UTXO,
 };
@@ -51,7 +51,7 @@ fn bench_hash_single(c: &mut Criterion) {
 }
 #[cfg(feature = "production")]
 fn bench_hash_batch(c: &mut Criterion) {
-    use bllvm_consensus::optimizations::simd_vectorization;
+    use blvm_consensus::optimizations::simd_vectorization;
     let data = vec![0u8; 64];
     let mut group = c.benchmark_group("hash_batch");
     // Batch sizes that matter in real blocks
@@ -95,12 +95,12 @@ fn bench_transaction_basics(c: &mut Criterion) {
     let mut group = c.benchmark_group("transaction");
     // Transaction serialization (needed for tx ID calculation)
     group.bench_function("serialize", |b| {
-        use bllvm_consensus::serialization::transaction::serialize_transaction;
+        use blvm_consensus::serialization::transaction::serialize_transaction;
         b.iter(|| black_box(serialize_transaction(black_box(&tx))))
     });
     // Transaction ID calculation (SHA256D of serialized tx)
     group.bench_function("calculate_id", |b| {
-        use bllvm_consensus::block::calculate_tx_id;
+        use blvm_consensus::block::calculate_tx_id;
         b.iter(|| black_box(calculate_tx_id(black_box(&tx))))
     });
     group.finish();
@@ -178,7 +178,7 @@ fn bench_block_validation(c: &mut Criterion) {
                 black_box(utxo_set),
                 black_box(0),
                 black_box(None),
-                black_box(bllvm_consensus::types::Network::Mainnet),
+                black_box(blvm_consensus::types::Network::Mainnet),
             );
         })
     });
@@ -194,7 +194,7 @@ fn bench_block_validation(c: &mut Criterion) {
                 black_box(utxo_set),
                 black_box(0),
                 black_box(None),
-                black_box(bllvm_consensus::types::Network::Mainnet),
+                black_box(blvm_consensus::types::Network::Mainnet),
             );
         })
     });

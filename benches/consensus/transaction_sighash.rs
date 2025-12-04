@@ -1,8 +1,8 @@
 //! Transaction Sighash Benchmark
 //! Matches Core's TransactionSighashCalculation benchmark exactly
 
-use bllvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
-use bllvm_consensus::{
+use blvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
+use blvm_consensus::{
     tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};

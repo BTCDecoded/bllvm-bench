@@ -1,19 +1,19 @@
-//! Performance benchmarks for BLLVM optimizations
+//! Performance benchmarks for BLVM optimizations
 //!
 //! These benchmarks measure the performance impact of BLLVM optimizations:
 //! - Pre-allocation (Phase 1)
 //! - Cache alignment (Phase 2)
-//! Run with: cargo bench --bench bllvm_optimizations --features production
+//! Run with: cargo bench --bench blvm_optimizations --features production
 
 #[cfg(feature = "production")]
-use bllvm_consensus::optimizations;
-use bllvm_consensus::{
+use blvm_consensus::optimizations;
+use blvm_consensus::{
     mining::calculate_merkle_root,
     serialization::{block::serialize_block_header, transaction::serialize_transaction},
     types::{BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput},
 };
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use bllvm_consensus::{tx_inputs, tx_outputs};
+use blvm_consensus::{tx_inputs, tx_outputs};
 /// Helper to create a test transaction
 fn create_test_transaction() -> Transaction {
     Transaction {
@@ -112,7 +112,7 @@ fn bench_block_header_serialization(c: &mut Criterion) {
             black_box(serialize_block_header(black_box(&header)));
 /// Benchmark pre-allocation impact
 fn bench_preallocation_impact(c: &mut Criterion) {
-    use bllvm_consensus::optimizations::{prealloc_block_buffer, prealloc_tx_buffer};
+    use blvm_consensus::optimizations::{prealloc_block_buffer, prealloc_tx_buffer};
     let mut group = c.benchmark_group("preallocation");
     group.bench_function("prealloc_tx_buffer", |b| {
             black_box(prealloc_tx_buffer());

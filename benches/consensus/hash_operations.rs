@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sha2::{Digest, Sha256};
 
-use bllvm_consensus::{tx_inputs, tx_outputs, OutPoint, TransactionInput, TransactionOutput};
+use blvm_consensus::{tx_inputs, tx_outputs, OutPoint, TransactionInput, TransactionOutput};
 fn benchmark_sha256(c: &mut Criterion) {
     let data = vec![0u8; 1024];
 
@@ -28,7 +28,7 @@ fn benchmark_double_sha256(c: &mut Criterion) {
 // SHA-NI benchmarks for single-hash performance
 #[cfg(target_arch = "x86_64")]
 fn benchmark_sha_ni_single(c: &mut Criterion) {
-    use bllvm_consensus::crypto::sha_ni;
+    use blvm_consensus::crypto::sha_ni;
 
     if !sha_ni::is_sha_ni_available() {
         return; // Skip on CPUs without SHA-NI
@@ -88,7 +88,7 @@ fn benchmark_sha_ni_single(_c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_batch_sha256(c: &mut Criterion) {
-    use bllvm_consensus::optimizations::simd_vectorization;
+    use blvm_consensus::optimizations::simd_vectorization;
 
     let batch_sizes = vec![4, 8, 16, 32, 64, 128];
     let data_1kb = vec![0u8; 1024];
@@ -121,7 +121,7 @@ fn benchmark_batch_sha256(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_batch_double_sha256(c: &mut Criterion) {
-    use bllvm_consensus::optimizations::simd_vectorization;
+    use blvm_consensus::optimizations::simd_vectorization;
 
     let batch_sizes = vec![4, 8, 16, 32, 64, 128];
     let data_1kb = vec![0u8; 1024];
@@ -159,7 +159,7 @@ fn benchmark_batch_double_sha256(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_batch_hash160(c: &mut Criterion) {
-    use bllvm_consensus::optimizations::simd_vectorization;
+    use blvm_consensus::optimizations::simd_vectorization;
     use ripemd::Ripemd160;
 
     let batch_sizes = vec![4, 8, 16, 32, 64];
@@ -194,8 +194,8 @@ fn benchmark_batch_hash160(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_merkle_root_batching(c: &mut Criterion) {
-    use bllvm_consensus::mining::calculate_merkle_root;
-    use bllvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
+    use blvm_consensus::mining::calculate_merkle_root;
+    use blvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     let tx_counts = vec![10, 100, 1000];
 
@@ -231,9 +231,9 @@ fn benchmark_merkle_root_batching(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_block_validation_tx_ids(c: &mut Criterion) {
-    use bllvm_consensus::optimizations::simd_vectorization;
-    use bllvm_consensus::serialization::transaction::serialize_transaction;
-    use bllvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
+    use blvm_consensus::optimizations::simd_vectorization;
+    use blvm_consensus::serialization::transaction::serialize_transaction;
+    use blvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     let tx_counts = vec![10, 100];
 
@@ -275,8 +275,8 @@ fn benchmark_block_validation_tx_ids(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_sighash_batching(c: &mut Criterion) {
-    use bllvm_consensus::transaction_hash::{batch_compute_sighashes, SighashType};
-    use bllvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
+    use blvm_consensus::transaction_hash::{batch_compute_sighashes, SighashType};
+    use blvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     let input_counts = vec![2, 5, 10, 20];
 
@@ -326,8 +326,8 @@ fn benchmark_sighash_batching(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_pow_batching(c: &mut Criterion) {
-    use bllvm_consensus::pow::batch_check_proof_of_work;
-    use bllvm_consensus::BlockHeader;
+    use blvm_consensus::pow::batch_check_proof_of_work;
+    use blvm_consensus::BlockHeader;
 
     let header_counts = vec![8, 16, 32, 64, 128];
 
@@ -354,7 +354,7 @@ fn benchmark_pow_batching(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_batch_ecdsa_verification(c: &mut Criterion) {
-    use bllvm_consensus::script::batch_verify_signatures;
+    use blvm_consensus::script::batch_verify_signatures;
     use secp256k1::{ecdsa::Signature, Message, Secp256k1};
 
     // Create test verification tasks with fixed test data
@@ -431,8 +431,8 @@ fn benchmark_batch_ecdsa_verification(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_sighash_templates(c: &mut Criterion) {
-    use bllvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
-    use bllvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
+    use blvm_consensus::transaction_hash::{calculate_transaction_sighash, SighashType};
+    use blvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     // Create standard transaction (1 input, 1 output) - most common pattern
     let tx = Transaction {
@@ -480,8 +480,8 @@ fn benchmark_sighash_templates(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_early_exit_transaction(c: &mut Criterion) {
-    use bllvm_consensus::transaction::check_transaction;
-    use bllvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
+    use blvm_consensus::transaction::check_transaction;
+    use blvm_consensus::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     // Test with obviously invalid transaction (empty inputs)
     let invalid_tx = Transaction {

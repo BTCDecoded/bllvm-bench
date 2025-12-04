@@ -1,8 +1,8 @@
 //! Block Assembly Benchmark
 //! Measures block creation from mempool transactions (create_new_block)
 
-use bllvm_consensus::mining::create_new_block;
-use bllvm_consensus::{
+use blvm_consensus::mining::create_new_block;
+use blvm_consensus::{
     tx_inputs, tx_outputs, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput,
     UtxoSet,
 };
