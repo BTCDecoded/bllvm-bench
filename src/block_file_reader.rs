@@ -188,7 +188,10 @@ impl BlockFileReader {
                     block_data[0], block_data[1], 
                     block_data[2], block_data[3]
                 ]);
-                if version == 0 || version > 10 {
+                // CRITICAL FIX: Bitcoin block versions can be much higher than 10
+                // Valid versions include: 1-4 (standard), 0x20000000+ (BIP9), etc.
+                // Only reject obviously invalid: version == 0 or version > 0x7fffffff (would be negative if signed)
+                if version == 0 || version > 0x7fffffff {
                     eprintln!("   ⚠️  WARNING: Skipping block {} in chunk {} (invalid version: {})", current_block_index, chunk_num, version);
                     skipped_blocks += 1;
                     current_block_index += 1;
@@ -1006,6 +1009,10 @@ impl BlockIterator {
                 
                 // Read blocks from file using full pattern searching logic
                 loop {
+                    // CRITICAL FIX: Track file position BEFORE reading magic
+                    // This is needed for correct XOR key rotation in Start9 files
+                    let magic_start_pos = file_reader.seek(SeekFrom::Current(0)).unwrap_or(0);
+                    
                     let mut magic_buf = [0u8; 4];
                     match file_reader.read_exact(&mut magic_buf) {
                         Ok(_) => {},
@@ -1014,15 +1021,21 @@ impl BlockIterator {
                     }
                     
                     // Check if file is XOR encrypted (Start9 format)
-                    let mut is_encrypted = false;
                     let mut encrypted_magic_bytes = magic_buf;
-                    if is_xor_encrypted {
-                        is_encrypted = magic_buf == ENCRYPTED_MAGIC;
-                        if is_encrypted {
-                            // Decrypt: XOR with KEY1 (bytes 0-3 use first key)
-                            for i in 0..4 {
-                                magic_buf[i] ^= XOR_KEY1[i];
-                            }
+                    let is_encrypted = if is_xor_encrypted {
+                        magic_buf == ENCRYPTED_MAGIC
+                    } else {
+                        false
+                    };
+                    
+                    if is_encrypted {
+                        // CRITICAL FIX: Decrypt magic using correct key based on FILE OFFSET
+                        // Magic is at file offset magic_start_pos, so use key based on that
+                        let use_key1 = (magic_start_pos / 4) % 2 == 0;
+                        let key = if use_key1 { &XOR_KEY1 } else { &XOR_KEY2 };
+                        for i in 0..4 {
+                            let byte_offset = magic_start_pos + i as u64;
+                            magic_buf[i] ^= key[(byte_offset % 4) as usize];
                         }
                     }
                     
@@ -1098,23 +1111,37 @@ impl BlockIterator {
                         }
                     }
                     
-                    // Read size field
+                    // Read size field (at file offset magic_start_pos + 4)
                     let mut size_buf = [0u8; 4];
                     if file_reader.read_exact(&mut size_buf).is_err() {
                         break;
                     }
                     
+                    // CRITICAL FIX: Use magic_start_pos as block_start_offset for XOR decryption
+                    // This is the file offset where the block's magic bytes start
                     let block_start_offset = if is_xor_encrypted {
-                        Some(file_reader.seek(SeekFrom::Current(0)).unwrap_or(0) - 8)
+                        Some(magic_start_pos)
                     } else {
                         None
                     };
                     
                     let mut block_size = if is_xor_encrypted {
-                        // Decrypt size field
-                        let size_u32 = u32::from_le_bytes(size_buf);
-                        let key2_u32 = u32::from_le_bytes(XOR_KEY2);
-                        let decrypted_size_u32 = size_u32 ^ key2_u32;
+                        // CRITICAL FIX: Decrypt size field using correct key based on FILE OFFSET
+                        // Size field is at file offset magic_start_pos + 4
+                        // CRITICAL FIX: Decrypt size field using correct key based on FILE OFFSET
+                        // Size field is at file offset magic_start_pos + 4
+                        // All 4 bytes of size field are in the same 4-byte chunk, so they use the same key
+                        let size_offset = magic_start_pos + 4;
+                        let use_key1 = (size_offset / 4) % 2 == 0;
+                        let key = if use_key1 { &XOR_KEY1 } else { &XOR_KEY2 };
+                        
+                        // Decrypt each byte of size field with correct key byte
+                        let mut decrypted_size_bytes = [0u8; 4];
+                        for i in 0..4 {
+                            let byte_offset = size_offset + i as u64;
+                            decrypted_size_bytes[i] = size_buf[i] ^ key[(byte_offset % 4) as usize];
+                        }
+                        let decrypted_size_u32 = u32::from_le_bytes(decrypted_size_bytes);
                         decrypted_size_u32 as usize
                     } else {
                         u32::from_le_bytes(size_buf) as usize
@@ -1795,7 +1822,9 @@ impl BlockIterator {
                         block_data[0], block_data[1],
                         block_data[2], block_data[3]
                     ]);
-                    if version == 0 || version > 10 {
+                    // CRITICAL FIX: Bitcoin block versions can be much higher than 10
+                    // Only reject obviously invalid: version == 0 or version > 0x7fffffff
+                    if version == 0 || version > 0x7fffffff {
                         return Err(anyhow::anyhow!("Final integrity check failed: block {} has invalid version {}", verify_start + i, version));
                     }
                 }
@@ -2111,6 +2140,10 @@ impl BlockIterator {
         let mut is_xor_encrypted = false;
         let mut encrypted_magic_bytes = [0u8; 4]; // Save original encrypted magic for reconstruction
         
+        // CRITICAL FIX: Track file position BEFORE reading magic
+        // This is needed for correct XOR key rotation in Start9 files
+        let magic_start_pos = file.stream_position()?;
+        
         match file.read_exact(&mut magic_buf) {
             Ok(_) => {
                 // Check if file is XOR encrypted (Start9 format)
@@ -2120,9 +2153,13 @@ impl BlockIterator {
                 if is_xor_encrypted {
                     // Save original encrypted magic before decrypting
                     encrypted_magic_bytes = magic_buf;
-                    // Decrypt: XOR with KEY1 (bytes 0-3 use first key)
+                    // CRITICAL FIX: Decrypt magic using correct key based on FILE OFFSET
+                    // Magic is at file offset magic_start_pos, so use key based on that
+                    let use_key1 = (magic_start_pos / 4) % 2 == 0;
+                    let key = if use_key1 { &XOR_KEY1 } else { &XOR_KEY2 };
                     for i in 0..4 {
-                        magic_buf[i] ^= XOR_KEY1[i];
+                        let byte_offset = magic_start_pos + i as u64;
+                        magic_buf[i] ^= key[(byte_offset % 4) as usize];
                     }
                 }
                 
@@ -2151,10 +2188,10 @@ impl BlockIterator {
             }
         }
         
-        // Get the file offset where this block's magic starts (for key rotation in Start9 format)
-        // We're currently at position: magic (4 bytes) + size (4 bytes) = 8 bytes into the block
+        // CRITICAL FIX: Use magic_start_pos as block_start_offset for XOR decryption
+        // This is the file offset where the block's magic bytes start
         let block_start_offset = if is_xor_encrypted {
-            Some(file.stream_position()? - 8)
+            Some(magic_start_pos)
         } else {
             None
         };
@@ -2162,10 +2199,19 @@ impl BlockIterator {
         // For Start9 encrypted files, decrypt the size field and use it as a HINT
         // Then verify the next block's magic is at the expected position
         let block_data = if is_xor_encrypted {
-            // OPTIMIZATION: Decrypt size field with u32 XOR (faster than byte-by-byte)
-            let size_u32 = u32::from_le_bytes(size_buf);
-            let key2_u32 = u32::from_le_bytes(XOR_KEY2);
-            let decrypted_size_u32 = size_u32 ^ key2_u32;
+            // CRITICAL FIX: Decrypt size field using correct key based on FILE OFFSET
+            // Size field is at file offset magic_start_pos + 4
+            let size_offset = magic_start_pos + 4;
+            let use_key1 = (size_offset / 4) % 2 == 0;
+            let key = if use_key1 { &XOR_KEY1 } else { &XOR_KEY2 };
+            
+            // Decrypt each byte of size field with correct key byte
+            let mut decrypted_size_bytes = [0u8; 4];
+            for i in 0..4 {
+                let byte_offset = size_offset + i as u64;
+                decrypted_size_bytes[i] = size_buf[i] ^ key[(byte_offset % 4) as usize];
+            }
+            let decrypted_size_u32 = u32::from_le_bytes(decrypted_size_bytes);
             let size_hint = decrypted_size_u32 as usize;
             
             // Validate size hint is reasonable
