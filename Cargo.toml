@@ -3,7 +3,7 @@ name = "blvm-bench"
 version = "0.1.0"
 edition = "2021"
 authors = ["Bitcoin Commons Team"]
-description = "Development-only benchmarking suite for Bitcoin Commons BLLVM ecosystem"
+description = "Development-only benchmarking suite for Bitcoin Commons BLVM ecosystem"
 license = "MIT"
 repository = "https://github.com/BTCDecoded/blvm-bench"
 homepage = "https://btcdecoded.org"
@@ -19,9 +19,9 @@ rust-version = "1.83"
 criterion = "0.5"
 
 # Bitcoin Commons dependencies for benchmarking
-bllvm-consensus = { path = "../bllvm-consensus", features = ["production", "utxo-commitments"] }
-bllvm-protocol = { path = "../bllvm-protocol" }
-bllvm-node = { path = "../bllvm-node", features = ["dandelion"] }
+blvm-consensus = { version = "0.1.6", features = ["production", "utxo-commitments"] }
+blvm-protocol = "0.1.3"
+blvm-node = { version = "0.1.0", features = ["dandelion"] }
 
 # Utilities
 serde = { version = "1.0", features = ["derive"] }
@@ -43,8 +43,8 @@ secp256k1 = "0.28"
 clap = { version = "4.4", features = ["derive"] }
 tokio = { version = "1.35", features = ["full"] }
 
-# HTTP client for RPC calls
-reqwest = { version = "0.11", features = ["json"] }
+# HTTP client for RPC calls (with HTTPS/TLS support)
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 
 # For finding executables in PATH
 which = "5.0"
@@ -52,12 +52,20 @@ which = "5.0"
 dirs = "5.0"
 # For hex encoding/decoding
 hex = "0.4"
+# For CPU count detection
+num_cpus = "1.16"
+# For fast pattern searching
+memchr = "2.7"
+# For parallel processing
+rayon = "1.8"
+# For memory-mapped file access (faster random access for large files)
+memmap2 = "0.9"
 
 [features]
 default = []
 # Enable production optimizations for benchmarking
 # This allows testing benches in production mode even though this is a dev crate
-production = ["bllvm-consensus/production"]
+production = ["blvm-consensus/production"]
 # Enable differential testing functionality
 differential = []
 # Enable benchmark helpers (uses differential infrastructure)
@@ -67,9 +75,12 @@ benchmark-helpers = ["differential"]
 # Additional testing utilities if needed
 proptest = "1.5"
 
-# Local development: Use .cargo/config.toml to override dependencies with local paths
-# This ensures bllvm-node (which uses published bllvm-protocol) gets the local version
-# For CI jobs that checkout dependencies, .cargo/config.toml is created automatically
+# Local development: Use [patch.crates-io] to override with local paths
+# For production/CI, these patches are removed and crates.io versions are used
+[patch.crates-io]
+blvm-consensus = { path = "../blvm-consensus" }
+blvm-protocol = { path = "../blvm-protocol" }
+blvm-node = { path = "../blvm-node" }
 
 # Benchmark targets - Consensus layer
 [[bench]]

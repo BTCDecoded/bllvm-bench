@@ -13,6 +13,7 @@ docs/data/benchmark-results-consolidated-latest.json
 # Logs
 *.log
 /tmp/
+/tmp/collection-only-*.log
 
 # IDE
 .idea/
@@ -34,3 +35,29 @@ config.toml
 
 # GitHub Actions
 .github/workflows/.gitkeep
+
+# Block cache files (large binary files)
+*.bin
+*.bin.zst
+*.dat
+blvm-bench-blocks-temp.bin
+blvm-bench-blocks-temp.bin.meta
+block-files-temp/
+chunks/
+~/.cache/blvm-bench/
+
+# Large test data
+*.zst
+test-data/
+cache/
+
+# Start9-specific files (local testing only, not for repo)
+*start9*
+mount-start9.sh
+start9-*.sh
+start9-env.sh
+populate-cache-start9.sh
+populate-cache-from-start9.sh
+src/start9_rpc_client.rs
+tests/start9_test.rs
+src/ssh_block_reader.rs

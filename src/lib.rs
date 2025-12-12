@@ -1,6 +1,6 @@
-//! bllvm-bench - Development-only benchmarking suite for Bitcoin Commons BLLVM
+//! blvm-bench - Development-only benchmarking suite for Bitcoin Commons BLVM
 //!
-//! This crate provides comprehensive benchmarking tools for the BLLVM ecosystem.
+//! This crate provides comprehensive benchmarking tools for the BLVM ecosystem.
 //! While it's a development-only crate, it supports testing in production mode
 //! to ensure benchmarks reflect real-world performance.
 
@@ -21,6 +21,16 @@ pub mod core_rpc_client;
 pub mod differential;
 #[cfg(any(feature = "differential", feature = "benchmark-helpers"))]
 pub mod regtest_node;
+#[cfg(feature = "differential")]
+pub mod parallel_differential;
+#[cfg(feature = "differential")]
+pub mod block_file_reader;
+#[cfg(feature = "differential")]
+pub mod start9_rpc_client;
+#[cfg(feature = "differential")]
+pub mod chunked_cache;
+#[cfg(feature = "differential")]
+pub mod collect_only;
 
 use anyhow::Result;
 
