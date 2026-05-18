@@ -25,7 +25,7 @@ criterion = "0.5"
 blvm-consensus = { version = ">=0.1, <1", features = ["production", "local-spec-lock", "smallvec", "benchmarking"] }
 blvm-protocol = { version = ">=0.1, <1", features = ["production", "benchmarking", "utxo-commitments"], optional = true }
 # Node-layer benches opt in via `node-benches` so default `cargo check --benches` stays lean.
-blvm-node = { path = "../blvm-node", optional = true, default-features = false, features = ["redb", "production", "protocol-verification", "dandelion", "fibre", "nix", "libc"] }
+blvm-node = { path = "../blvm-node", optional = true, default-features = false, features = ["redb", "production", "protocol-verification", "dandelion", "nix", "libc"] }
 
 # Utilities
 serde = { version = "1.0", features = ["derive"] }
@@ -103,7 +103,7 @@ default = []
 # Chunk block cache + `chunk_index` / `missing_blocks` (shared by scan and differential tooling).
 chunk-cache = []
 # UTXO checkpoint manager + delta pipeline (`checkpoint_persistence`, `utxo_delta`, …).
-utxo-snapshot-tools = []
+utxo-snapshot-tools = ["dep:blvm-protocol"]
 # Enable production optimizations for benchmarking
 # This allows testing benches in production mode even though this is a dev crate
 production = ["blvm-consensus/production"]
@@ -130,6 +130,8 @@ disk-utxo = ["dep:rocksdb"]
 utxo-commitments = ["blvm-protocol/utxo-commitments"]
 # Benches that import `blvm_node` (storage, RPC integration, parallel validation, Dandelion/FIBRE).
 node-benches = ["dep:blvm-node"]
+# Binaries that import `blvm_protocol` directly (not pulled by default).
+protocol-bins = ["dep:blvm-protocol"]
 
 [dev-dependencies]
 # Additional testing utilities if needed
@@ -221,6 +223,7 @@ harness = false
 name = "compact_blocks"
 path = "benches/node/compact_blocks.rs"
 harness = false
+required-features = ["protocol-bins"]
 
 [[bench]]
 name = "dandelion_bench"
@@ -228,11 +231,7 @@ path = "benches/node/dandelion_bench.rs"
 harness = false
 required-features = ["node-benches"]
 
-[[bench]]
-name = "fibre_bench"
-path = "benches/node/fibre_bench.rs"
-harness = false
-required-features = ["node-benches"]
+# fibre_bench removed: blvm-node no longer ships network/fibre (see blvm-fibre module).
 
 [[bench]]
 name = "storage_operations"
@@ -244,6 +243,7 @@ required-features = ["node-benches"]
 name = "transport_comparison"
 path = "benches/node/transport_comparison.rs"
 harness = false
+required-features = ["protocol-bins"]
 
 [[bench]]
 name = "parallel_block_validation"
@@ -394,6 +394,7 @@ required-features = ["chunk-cache"]
 [[bin]]
 name = "bench_snapshots"
 path = "src/bin/bench_snapshots.rs"
+required-features = ["protocol-bins"]
 
 [[bin]]
 name = "block_kernel_diff"
@@ -506,6 +507,7 @@ required-features = ["differential"]
 [[bin]]
 name = "test_signature_direct"
 path = "src/bin/test_signature_direct.rs"
+required-features = ["protocol-bins"]
 
 [[bin]]
 name = "analyze_failures"

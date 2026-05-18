@@ -36,6 +36,8 @@ kernel-diff.local.env
 
 # Perf output
 /tmp/perf-*.csv
+perf.data
+*.data
 
 # GitHub Actions
 .github/workflows/.gitkeep
