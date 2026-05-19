@@ -1,7 +1,8 @@
 name: Run Benchmarks (Parallel)
 
+# CI paused — automatic runs disabled. Re-enable push/schedule below when ready.
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:  # Manual trigger only
     inputs:
       speed_fast:
         description: 'Run fast benchmarks (< 2 min each)'
@@ -28,20 +29,19 @@ on:
           - fair
           - core
           - commons
-  schedule:
-    # Run daily at 2 AM UTC
-    - cron: '0 2 * * *'
-  push:
-    branches:
-      - main
-    paths:
-      - 'scripts/**'
-      - 'benches/**'
-      - '.github/workflows/benchmarks.yml'
+  # schedule:
+  #   - cron: '0 2 * * *'
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'scripts/**'
+  #     - 'benches/**'
+  #     - '.github/workflows/benchmarks.yml'
 
 jobs:
   # Setup job - clones repos and builds dependencies
   setup:
+    if: false  # workflow disabled; remove this line when re-enabling triggers
     runs-on: [self-hosted, Linux, X64, perf]
     outputs:
       core_path: ${{ steps.setup.outputs.core_path }}

@@ -1,31 +1,32 @@
 name: Differential Tests
 
+# CI paused — automatic runs disabled. Re-enable push/pull_request/schedule below when ready.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'tests/integration/**'
-      - 'src/differential.rs'
-      - 'src/core_builder.rs'
-      - 'src/regtest_node.rs'
-      - 'src/core_rpc_client.rs'
-      - 'Cargo.toml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'tests/integration/**'
-      - 'src/differential.rs'
-      - 'src/core_builder.rs'
-      - 'src/regtest_node.rs'
-      - 'src/core_rpc_client.rs'
-      - 'Cargo.toml'
   workflow_dispatch:
-  schedule:
-    # Run daily at 3 AM UTC (after benchmarks at 2 AM)
-    - cron: '0 3 * * *'
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'tests/integration/**'
+  #     - 'src/differential.rs'
+  #     - 'src/core_builder.rs'
+  #     - 'src/regtest_node.rs'
+  #     - 'src/core_rpc_client.rs'
+  #     - 'Cargo.toml'
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - 'tests/integration/**'
+  #     - 'src/differential.rs'
+  #     - 'src/core_builder.rs'
+  #     - 'src/regtest_node.rs'
+  #     - 'src/core_rpc_client.rs'
+  #     - 'Cargo.toml'
+  # schedule:
+  #   - cron: '0 3 * * *'
 
 jobs:
   differential:
+    if: false  # workflow disabled; remove this line when re-enabling triggers
     runs-on: [self-hosted, Linux, X64, perf]
     timeout-minutes: 60
     steps:
