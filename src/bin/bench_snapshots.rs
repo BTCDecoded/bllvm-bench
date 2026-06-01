@@ -58,6 +58,7 @@ fn validate_snapshot(dir: &Path, height: u64, iterations: u32) -> Vec<f64> {
             None,
             Some(block_arc_clone),
             None,
+            None,
         )
         .unwrap_or_else(|e| panic!("connect_block_ibd failed at height {}: {}", height, e));
 
