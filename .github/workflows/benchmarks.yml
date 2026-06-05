@@ -53,7 +53,7 @@ jobs:
       speed_list: ${{ steps.determine_suite.outputs.speed_list }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
@@ -92,7 +92,7 @@ jobs:
           fi
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/bin/
@@ -394,7 +394,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
 
       - name: Strip [patch.crates-io] for crates.io-only CI
@@ -546,7 +546,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -780,7 +780,7 @@ jobs:
           echo "results_dir=$RESULTS_DIR" >> $GITHUB_OUTPUT
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: benchmark-${{ matrix.name }}
@@ -798,7 +798,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
@@ -807,7 +807,7 @@ jobs:
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
       - name: Download all benchmark artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
 
