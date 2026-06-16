@@ -1,5 +1,10 @@
 //! Sort-Merge Differential Validation CLI
 //!
+//! **Full-chain Phase 1 (scripts):** step 6 verifies BLVM scripts on every mainnet input.
+//! Combined with `block_kernel_diff` (Phase 2, block accept/reject), this is the complete
+//! mainnet differential program. See **`docs/FULL_CHAIN_DIFFERENTIAL.md`** — step 6 uses the
+//! canonical chain as oracle, not per-input `bitcoinconsensus`.
+//!
 //! Gold-standard differential testing using external sort + merge-join.
 //!
 //! Usage:
@@ -22,7 +27,7 @@ use blvm_bench::sort_merge::{
     input_refs::{extract_input_refs, sort_input_refs},
     merge_join::{merge_join, sort_joined},
     output_refs::{extract_outputs, sort_outputs},
-    verify::verify_scripts,
+    verify::{smoke_test_prevout_reader, verify_scripts},
 };
 
 // Configuration from environment
@@ -175,6 +180,11 @@ fn main() -> Result<()> {
                 }
             }
         }
+        "prevout_smoke" => {
+            let smoke_start: u32 = get_env("SMOKE_START", "812363").parse()?;
+            let smoke_end: u32 = get_env("SMOKE_END", "812400").parse()?;
+            smoke_test_prevout_reader(&joined_sorted, smoke_start, smoke_end)?;
+        }
         "status" => {
             // Show status of intermediate files
             println!("\nFile Status:");
@@ -242,6 +252,7 @@ fn print_usage() {
     println!("  step4, 4     Merge-join inputs with outputs (~5 min, ~10 GB)");
     println!("  step5, 5     Sort joined by spending location (~10 min)");
     println!("  step6, 6     Verify scripts in parallel (~2-3 hours)");
+    println!("  prevout_smoke  Validate PrevoutReader seek (SMOKE_START/SMOKE_END)");
     println!("  all          Run all steps");
     println!("  status       Show status of intermediate files");
     println!("  clean        Remove intermediate files");

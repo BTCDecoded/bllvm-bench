@@ -37,11 +37,116 @@ struct Args {
     /// Dry-run: print what would be written without doing it.
     #[arg(long, default_value_t = false)]
     dry_run: bool,
+
+    /// Materialize exactly one snapshot: load `utxo_{from}.bin`, walk the transitive
+    /// delta ladder to `--to`, write `utxo_{to}.bin`, then exit.  Uses one process
+    /// (bounded RAM vs materializing from utxo_0 for high heights).
+    #[arg(long)]
+    from: Option<u64>,
+
+    /// Target height for `--from` mode (must have `utxo_{from}.bin` present).
+    #[arg(long)]
+    to: Option<u64>,
+}
+
+fn collect_deltas_by_base(dir: &Path) -> Result<BTreeMap<u64, Vec<(u64, PathBuf)>>> {
+    let mut deltas_from: BTreeMap<u64, Vec<(u64, PathBuf)>> = BTreeMap::new();
+    for entry in std::fs::read_dir(dir).with_context(|| format!("open dir {}", dir.display()))? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if let Some(rest) = name.strip_prefix("delta_") {
+            if let Some(h_str) = rest.strip_suffix(".bin") {
+                if let Ok(h) = h_str.parse::<u64>() {
+                    let path = entry.path();
+                    let base_h = read_delta_base_height(&path)
+                        .with_context(|| format!("reading header of {}", path.display()))?;
+                    deltas_from.entry(base_h).or_default().push((h, path));
+                }
+            }
+        }
+    }
+    for v in deltas_from.values_mut() {
+        v.sort_by_key(|(h, _)| *h);
+    }
+    Ok(deltas_from)
+}
+
+fn materialize_from_to(dir: &Path, from: u64, to: u64, dry_run: bool) -> Result<()> {
+    let base_path = dir.join(format!("utxo_{from}.bin"));
+    if !base_path.is_file() {
+        bail!("missing {}", base_path.display());
+    }
+    let dest = dir.join(format!("utxo_{to}.bin"));
+    if dest.is_file() {
+        eprintln!("✓ {} already exists, nothing to do", dest.display());
+        return Ok(());
+    }
+
+    let deltas_by_base = collect_deltas_by_base(dir)?;
+    eprintln!("Loading utxo_{from}.bin …");
+    let mut set = decode_fixed_v1_file(&base_path)
+        .with_context(|| format!("decode {}", base_path.display()))?;
+    eprintln!("Loaded {} entries.", set.len());
+
+    let mut current = from;
+    while current < to {
+        let chain = deltas_by_base
+            .get(&current)
+            .with_context(|| format!("no delta rooted at height {current} (need to reach {to})"))?;
+        let (target_h, path) = chain
+            .iter()
+            .rev()
+            .find(|(h, _)| *h <= to)
+            .with_context(|| format!("no delta from base {current} reaches ≤ {to}"))?;
+        let delta = read_delta(path)?;
+        if delta.base_height != current {
+            bail!(
+                "delta chain broken at {}: expected base {}, got {}",
+                path.display(),
+                current,
+                delta.base_height
+            );
+        }
+        eprintln!(
+            "  Applying {} (base {} → target {})",
+            path.display(),
+            current,
+            target_h
+        );
+        apply_delta(&mut set, &delta);
+        current = *target_h;
+    }
+    if current != to {
+        bail!("delta walk landed at {current}, expected {to}");
+    }
+
+    if dry_run {
+        eprintln!(
+            "[dry-run] would write {} ({} entries)",
+            dest.display(),
+            set.len()
+        );
+        return Ok(());
+    }
+    eprintln!("Writing {} ({} entries) …", dest.display(), set.len());
+    write_fixed_v1_file(to, &set, &dest)?;
+    eprintln!("✅ Wrote {}", dest.display());
+    Ok(())
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     let dir = &args.dir;
+
+    if args.from.is_some() || args.to.is_some() {
+        let from = args.from.context("--from required with --to")?;
+        let to = args.to.context("--to required with --from")?;
+        if from >= to {
+            bail!("--from ({from}) must be < --to ({to})");
+        }
+        return materialize_from_to(dir, from, to, args.dry_run);
+    }
 
     // ── Collect existing utxo_H.bin heights ──────────────────────────────────
     let mut bases: BTreeMap<u64, PathBuf> = BTreeMap::new();
@@ -63,28 +168,7 @@ fn main() -> Result<()> {
     }
 
     // ── Collect delta files: group by base_height ─────────────────────────────
-    // delta_H.bin: base_height → H
-    let mut deltas_from: BTreeMap<u64, Vec<(u64, PathBuf)>> = BTreeMap::new();
-    for entry in std::fs::read_dir(dir).with_context(|| format!("open dir {}", dir.display()))? {
-        let entry = entry?;
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if let Some(rest) = name.strip_prefix("delta_") {
-            if let Some(h_str) = rest.strip_suffix(".bin") {
-                if let Ok(h) = h_str.parse::<u64>() {
-                    // Read base_height from header (offset 20, 8 bytes LE u64).
-                    let path = entry.path();
-                    let base_h = read_delta_base_height(&path)
-                        .with_context(|| format!("reading header of {}", path.display()))?;
-                    deltas_from.entry(base_h).or_default().push((h, path));
-                }
-            }
-        }
-    }
-    // Sort each group by target height ascending.
-    for v in deltas_from.values_mut() {
-        v.sort_by_key(|(h, _)| *h);
-    }
+    let deltas_from = collect_deltas_by_base(dir)?;
 
     // ── Walk each base and follow its delta chain ─────────────────────────────
     let mut written = 0usize;

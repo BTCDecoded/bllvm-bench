@@ -152,6 +152,11 @@ unsafe extern "C" {
         block_headers: *const u8,
         n_headers: size_t,
     ) -> c_int;
+    fn btck_chainstate_manager_seed_headless_restore(
+        chainstate_manager: *mut c_void,
+        block_headers: *const u8,
+        n_headers: size_t,
+    ) -> c_int;
 
     fn btck_chainstate_manager_process_block(
         chainstate_manager: *mut c_void,
@@ -447,6 +452,38 @@ impl KernelSession {
         };
         if rc != 0 {
             anyhow::bail!("btck_chainstate_manager_seed_headless failed (rc={rc}); see Core logs");
+        }
+        Ok(())
+    }
+
+    /// Restore a headless chainstate after process restart **without** re-loading the UTXO snapshot.
+    ///
+    /// This is a lightweight alternative to [`seed_headless`] for use when the coins DB is already
+    /// populated from a prior run (so we can skip the expensive 57M-UTXO import). It rebuilds only
+    /// the dummy pprev stub chain and patches the dangling pointer on the first real stub, then
+    /// restores `m_chain.Tip()` to the actual current best block from the coins DB.
+    ///
+    /// Eliminates the ~10–50 GiB glibc heap fragmentation caused by cycling `CCoinsViewCache`
+    /// through multiple `Flush()` calls during a full seed restart.
+    ///
+    /// **Preconditions:**
+    /// - The `KernelSession` was opened with `defer_activate_best_chains: true`.
+    /// - Coins DB is already populated (non-null `GetBestBlock()`).
+    /// - Block index has been loaded from LevelDB (at least one `process_block` ran before shutdown).
+    /// - `raw_headers` is the same header window originally passed to [`seed_headless`].
+    pub fn seed_headless_restore(&self, raw_headers: &[[u8; 80]]) -> Result<()> {
+        let flat: Vec<u8> = raw_headers.iter().flat_map(|h| h.iter().copied()).collect();
+        let rc = unsafe {
+            btck_chainstate_manager_seed_headless_restore(
+                self.chainman,
+                flat.as_ptr(),
+                raw_headers.len(),
+            )
+        };
+        if rc != 0 {
+            anyhow::bail!(
+                "btck_chainstate_manager_seed_headless_restore failed (rc={rc}); see Core logs"
+            );
         }
         Ok(())
     }

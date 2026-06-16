@@ -1,5 +1,9 @@
 //! Compare BLVM `connect_block` vs Bitcoin Core `libbitcoinkernel` for each mainnet block from the chunk cache.
 //!
+//! **Full-chain Phase 2 (block accept/reject):** paired with `sort_merge_test` step 6 (Phase 1, scripts).
+//! Together they form the complete mainnet differential; scripts are skipped below assume-valid on
+//! **both** sides here because Phase 1 already covers them. See **`docs/FULL_CHAIN_DIFFERENTIAL.md`**.
+//!
 //! ## Paths (defaults -- no env required)
 //! - **Chunk cache**: **`--block-cache-dir`** > `BLOCK_CACHE_DIR` > `~/.local/share/blvm-kernel-diff/chunk-cache` if it has `chunks.meta` > XDG chunk cache (`get_chunks_dir`).
 //! - **Core datadir**: **`--core-datadir`** > `CORE_DIFF_DATADIR` > **`~/.local/share/blvm-kernel-diff/core-datadir`**.
@@ -106,7 +110,7 @@ use blvm_bench::kernel_diff_paths::{
     resolve_block_cache_root, resolve_chunks_data_dir,
 };
 use blvm_protocol::bip113::MEDIAN_TIME_BLOCKS;
-use blvm_protocol::block::connect_block;
+use blvm_protocol::block::connect_block_with_chainwork as connect_block_assume_valid;
 use blvm_protocol::constants::{DIFFICULTY_ADJUSTMENT_INTERVAL, MAX_TARGET};
 use blvm_protocol::pow::{check_proof_of_work, get_next_work_required};
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
@@ -117,7 +121,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -249,6 +253,21 @@ struct Args {
     #[arg(long, default_value_t = false, env = "CORE_IMPORT_FROM_DELTAS")]
     import_from_deltas: bool,
 
+    /// Restore Core's headless chainstate after a process restart **without** reloading the UTXO
+    /// snapshot file (avoids the ~10–50 GiB glibc heap spike from cycling CCoinsViewCache).
+    ///
+    /// Preconditions:
+    /// - Core's chainstate DB (`--core-datadir`) is already populated from a prior
+    ///   `--import-from-deltas` run that processed at least one block via `process_block`.
+    ///   The block index is present in `blocks/index/`.
+    /// - `--blvm-checkpoint-height H` is set; BLVM's disk-utxo DB is at height H (or will be
+    ///   loaded from `utxo_H.bin` if empty).
+    /// - **Do not** combine with `--wipe-chainstate-db` or `--import-from-deltas`.
+    ///
+    /// The restart script passes this flag automatically when `.kernel_diff_core_tip` matches H.
+    #[arg(long, default_value_t = false, env = "CORE_IMPORT_FROM_CORE_TIP")]
+    import_from_core_tip: bool,
+
     /// Hard RSS limit in megabytes. When the process exceeds this, it writes a checkpoint (if
     /// `--checkpoint-every` is nonzero) and exits **0** with a resume hint. Default **0** = no limit.
     /// For a 16 GB machine with a browser running, `6000` is a reasonable value.
@@ -341,14 +360,16 @@ struct DivergenceLine {
 }
 
 fn block_hash_hex(header: &BlockHeader) -> String {
-    let mut bytes = Vec::with_capacity(80);
-    bytes.extend_from_slice(&header.version.to_le_bytes());
-    bytes.extend_from_slice(&header.prev_block_hash);
-    bytes.extend_from_slice(&header.merkle_root);
-    bytes.extend_from_slice(&header.timestamp.to_le_bytes());
-    bytes.extend_from_slice(&header.bits.to_le_bytes());
-    bytes.extend_from_slice(&header.nonce.to_le_bytes());
-    let h = Sha256::digest(Sha256::digest(&bytes));
+    // Stack-allocated 80-byte header serialization — avoids a heap alloc per block.
+    // Fields are i64/u64 internally but Bitcoin wire format uses i32/u32 (4 bytes each).
+    let mut bytes = [0u8; 80];
+    bytes[0..4].copy_from_slice(&(header.version as i32).to_le_bytes());
+    bytes[4..36].copy_from_slice(&header.prev_block_hash);
+    bytes[36..68].copy_from_slice(&header.merkle_root);
+    bytes[68..72].copy_from_slice(&(header.timestamp as u32).to_le_bytes());
+    bytes[72..76].copy_from_slice(&(header.bits as u32).to_le_bytes());
+    bytes[76..80].copy_from_slice(&(header.nonce as u32).to_le_bytes());
+    let h = Sha256::digest(Sha256::digest(bytes));
     hex::encode(h)
 }
 
@@ -813,6 +834,15 @@ fn main() -> Result<()> {
     // --wipe-chainstate-db alone (without --import-from-deltas) is for the classic
     // wipe+import_blvm_snapshot path (still requires block index at height H).
     let do_wipe = args.wipe_chainstate_db;
+    anyhow::ensure!(
+        !(args.import_from_core_tip && do_wipe),
+        "--import-from-core-tip cannot be combined with --wipe-chainstate-db \
+         (the point is to reuse the existing coins DB — wipe would destroy it)"
+    );
+    anyhow::ensure!(
+        !(args.import_from_core_tip && args.import_from_deltas),
+        "--import-from-core-tip and --import-from-deltas are mutually exclusive"
+    );
     // Headless seed calls InsertBlockIndex for each header hash. If the on-disk block tree DB
     // still has entries from an older run / checkpoint, stub heights can disagree with the new
     // seed and GetNextWorkRequired walks wrong ancestors → `bad-diffbits` at 2016 boundaries,
@@ -827,8 +857,12 @@ fn main() -> Result<()> {
     // Core work.  If the process is killed mid-import the file will be absent, forcing the restart
     // script to fall back to the safe wipe+reimport path.  A matching tip is written again on
     // every clean (MemAvailable / RSS) exit after the comparison loop validates that Core is at H.
+    // For --import-from-core-tip we keep the existing tip sentinel: if the restore path works,
+    // the sentinel will be re-written at exit; if it fails, absence forces a safe wipe+reimport.
     let core_tip_path = core_datadir.join(".kernel_diff_core_tip");
-    let _ = std::fs::remove_file(&core_tip_path);
+    if !args.import_from_core_tip {
+        let _ = std::fs::remove_file(&core_tip_path);
+    }
 
     let kopts = KernelSessionOptions {
         worker_threads: args.worker_threads as i32,
@@ -837,6 +871,7 @@ fn main() -> Result<()> {
         wipe_chainstate_db: do_wipe,
         wipe_block_tree_db: wipe_block_tree_for_headless,
         defer_activate_best_chains: args.import_from_deltas
+            || args.import_from_core_tip
             || (!do_wipe && args.blvm_prefer_utxo_snapshot),
         coins_cache_mb: Some(args.kernel_coins_cache_mb),
         skip_scripts: args.kernel_skip_scripts,
@@ -965,6 +1000,85 @@ fn main() -> Result<()> {
             "   ✅ headless Core seeded at height {h} ({} headers for Core; {} raw prefetched)",
             raw_headers.len() - seed_off,
             raw_headers.len()
+        );
+        if from_chunk_walk {
+            chunk_prefetch_headers = Some((lookback_start, raw_headers));
+        }
+    } else if args.import_from_core_tip {
+        // ── Lightweight restart: restore headless stubs without UTXO reload ──────────────────────
+        // Core's LevelDB chainstate is already at height H from a prior `--import-from-deltas` run.
+        // We only need to rebuild the in-memory dummy pprev stub chain so Core can compute MTP,
+        // difficulty retargets, and csv/locktime for blocks H+1 onward.
+        let h = args
+            .blvm_checkpoint_height
+            .with_context(|| "--import-from-core-tip requires --blvm-checkpoint-height H")?;
+        let cp_dir = cache_root.join(&args.checkpoint_dir);
+
+        const RETARGET_INTERVAL: u64 = 2016;
+        let retarget_anchor = (h / RETARGET_INTERVAL) * RETARGET_INTERVAL;
+        let cmp_height = h.saturating_add(1);
+        let mtp_oldest = cmp_height.saturating_sub(MEDIAN_TIME_BLOCKS as u64);
+        let ring_oldest = cmp_height.saturating_sub(2 * DIFFICULTY_ADJUSTMENT_INTERVAL);
+        let lookback_start = retarget_anchor.min(mtp_oldest).min(ring_oldest);
+        let lookback_count = (h - lookback_start + 1) as usize;
+
+        let (raw_headers, from_chunk_walk, headers_base): (Vec<[u8; 80]>, bool, u64) =
+            if let Some(cached) = load_raw_headers_for_seed(&cp_dir, h) {
+                eprintln!(
+                    "   📋 {} headers from cache for seed_headless_restore",
+                    cached.len()
+                );
+                (cached, false, retarget_anchor)
+            } else {
+                eprintln!(
+                "   📋 collecting {} headers ({lookback_start}..={h}) for restore + MTP + ring …",
+                lookback_count
+            );
+                let mut hdr_iter = ChunkedBlockIterator::new(
+                    &chunks_dir,
+                    Some(lookback_start),
+                    Some(lookback_count),
+                )
+                .context("chunk cache iterator for restore header lookback")?
+                .context("chunk cache missing metadata for restore header lookback")?;
+                let mut hdrs: Vec<[u8; 80]> = Vec::with_capacity(lookback_count);
+                while let Some(raw) = hdr_iter.next_block()? {
+                    anyhow::ensure!(
+                        raw.len() >= 80,
+                        "raw block too short ({} bytes) for header extraction",
+                        raw.len()
+                    );
+                    let mut hdr = [0u8; 80];
+                    hdr.copy_from_slice(&raw[..80]);
+                    hdrs.push(hdr);
+                }
+                anyhow::ensure!(
+                    hdr_iter.current_height() == h + 1,
+                    "restore header prefetch ended at height {} (expected H+1={})",
+                    hdr_iter.current_height(),
+                    h + 1
+                );
+                resumed_chunk_iter = Some(hdr_iter);
+                (hdrs, true, lookback_start)
+            };
+
+        let seed_off = (retarget_anchor - headers_base) as usize;
+        anyhow::ensure!(
+            seed_off <= raw_headers.len(),
+            "restore seed slice OOB: retarget_anchor={retarget_anchor} headers_base={headers_base} len={}",
+            raw_headers.len()
+        );
+        kernel
+            .seed_headless_restore(&raw_headers[seed_off..])
+            .with_context(|| {
+                format!(
+                    "seed_headless_restore at height {h} ({} headers; {seed_off} skipped)",
+                    raw_headers.len() - seed_off
+                )
+            })?;
+        eprintln!(
+            "   ✅ headless Core restored at height {h} ({} headers; no UTXO reload)",
+            raw_headers.len() - seed_off
         );
         if from_chunk_walk {
             chunk_prefetch_headers = Some((lookback_start, raw_headers));
@@ -1279,10 +1393,21 @@ fn main() -> Result<()> {
                 if let Some(ref mut du) = disk_utxo {
                     let input_ops = blvm_bench::disk_utxo::block_input_outpoints(&block);
                     let prefetched = du.prefetch(&input_ops)?;
-                    match connect_block(&block, &witnesses, prefetched.clone(), height, &ctx) {
+                    // Collect keys before moving prefetched into connect_block — avoids cloning
+                    // the full UtxoSet (Arc values) just for membership testing in apply_block_delta.
+                    let prefetched_keys: rustc_hash::FxHashSet<_> =
+                        prefetched.keys().copied().collect();
+                    match connect_block_assume_valid(
+                        &block,
+                        &witnesses,
+                        prefetched,
+                        height,
+                        &ctx,
+                        Some(u128::MAX),
+                    ) {
                         Ok((ValidationResult::Valid, post_set, _)) => {
                             du.set_inflight_tip(height);
-                            du.apply_block_delta(&input_ops, &post_set, &prefetched)?;
+                            du.apply_block_delta(&input_ops, &post_set, &prefetched_keys)?;
                             push_mtp_window(&mut mtp_header_window, block.header.clone());
                             push_difficulty_ring(&mut diff_ring, block.header.clone());
                         }
@@ -1292,7 +1417,14 @@ fn main() -> Result<()> {
                         Err(e) => anyhow::bail!("BLVM pre-roll error at height {height}: {e:#}"),
                     }
                 } else {
-                    match connect_block(&block, &witnesses, utxo_set, height, &ctx) {
+                    match connect_block_assume_valid(
+                        &block,
+                        &witnesses,
+                        utxo_set,
+                        height,
+                        &ctx,
+                        Some(u128::MAX),
+                    ) {
                         Ok((ValidationResult::Valid, new_utxo, _)) => {
                             utxo_set = new_utxo;
                             push_mtp_window(&mut mtp_header_window, block.header.clone());
@@ -1313,42 +1445,51 @@ fn main() -> Result<()> {
         height += 1;
     }
 
-    let mut sidecar: Option<std::fs::File> = if let Some(ref p) = args.resume_state_path {
-        Some(
+    // 64 KiB write buffer for all JSONL outputs — batches many per-block writeln calls into
+    // fewer syscalls, cutting I/O contention with the chunk reader on the same HDD.
+    const LOG_BUF_BYTES: usize = 64 * 1024;
+
+    let mut sidecar: Option<BufWriter<std::fs::File>> = if let Some(ref p) = args.resume_state_path
+    {
+        Some(BufWriter::with_capacity(
+            LOG_BUF_BYTES,
             OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(p)
                 .with_context(|| format!("open {}", p.display()))?,
-        )
+        ))
     } else {
         None
     };
 
-    let mut jsonl_log: Option<std::fs::File> = if let Some(ref p) = args.jsonl_log {
-        Some(
+    let mut jsonl_log: Option<BufWriter<std::fs::File>> = if let Some(ref p) = args.jsonl_log {
+        Some(BufWriter::with_capacity(
+            LOG_BUF_BYTES,
             OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(p)
                 .with_context(|| format!("open jsonl log {}", p.display()))?,
-        )
+        ))
     } else {
         None
     };
     let silent_stdout = jsonl_log.is_some();
 
-    let mut divergence_log: Option<std::fs::File> = if let Some(ref p) = args.divergence_log_path {
-        Some(
-            OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(p)
-                .with_context(|| format!("open divergence log {}", p.display()))?,
-        )
-    } else {
-        None
-    };
+    let mut divergence_log: Option<BufWriter<std::fs::File>> =
+        if let Some(ref p) = args.divergence_log_path {
+            Some(BufWriter::with_capacity(
+                LOG_BUF_BYTES,
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(p)
+                    .with_context(|| format!("open divergence log {}", p.display()))?,
+            ))
+        } else {
+            None
+        };
 
     let mut compared: u64 = 0;
     let mut divergence_count: u64 = 0;
@@ -1480,16 +1621,23 @@ fn main() -> Result<()> {
                                 let input_ops =
                                     blvm_bench::disk_utxo::block_input_outpoints(&block);
                                 let prefetched = du.prefetch(&input_ops)?;
-                                match connect_block(
+                                let prefetched_keys: rustc_hash::FxHashSet<_> =
+                                    prefetched.keys().copied().collect();
+                                match connect_block_assume_valid(
                                     &block,
                                     &witnesses,
-                                    prefetched.clone(),
+                                    prefetched,
                                     height,
                                     &ctx,
+                                    Some(u128::MAX),
                                 ) {
-                                    Ok((vr, post_set, _undo)) => {
+                                    Ok((vr, post_set, _)) => {
                                         du.set_inflight_tip(height);
-                                        du.apply_block_delta(&input_ops, &post_set, &prefetched)?;
+                                        du.apply_block_delta(
+                                            &input_ops,
+                                            &post_set,
+                                            &prefetched_keys,
+                                        )?;
                                         match vr {
                                             ValidationResult::Valid => {
                                                 (bh, "valid".to_string(), String::new())
@@ -1506,8 +1654,15 @@ fn main() -> Result<()> {
                                     ),
                                 }
                             } else {
-                                match connect_block(&block, &witnesses, utxo_set, height, &ctx) {
-                                    Ok((vr, new_utxo, _undo)) => {
+                                match connect_block_assume_valid(
+                                    &block,
+                                    &witnesses,
+                                    utxo_set,
+                                    height,
+                                    &ctx,
+                                    Some(u128::MAX),
+                                ) {
+                                    Ok((vr, new_utxo, _)) => {
                                         utxo_set = new_utxo;
                                         match vr {
                                             ValidationResult::Valid => {
@@ -1559,26 +1714,49 @@ fn main() -> Result<()> {
         let verdict_match = blvm_ok == core_valid;
         let divergence = !verdict_match;
 
-        let line = JsonlLine {
-            height,
-            block_hash: block_hash.clone(),
-            blvm: blvm_tag.clone(),
-            blvm_detail: blvm_detail.clone(),
-            core: core_tag.to_string(),
-            core_detail: core_detail.clone(),
-            verdict_match,
-            divergence,
-        };
-
-        let json = serde_json::to_string(&line)?;
+        // Write JSONL with manual formatting — avoids serde struct construction + String alloc
+        // per block (the hot path runs 100k+ times; serde_json allocates ~300 bytes per call).
+        // `blvm_detail` and `core_detail` use JSON string escaping for safety.
+        // For the common valid-block case (empty detail strings), skip serde entirely and emit
+        // the literal `""` — avoids ~2 small String allocations per block × 900k blocks.
+        macro_rules! write_jsonl_line {
+            ($w:expr) => {{
+                let tmp_bd;
+                let blvm_detail_json: &str = if blvm_detail.is_empty() {
+                    "\"\""
+                } else {
+                    tmp_bd = serde_json::to_string(&blvm_detail)?;
+                    &tmp_bd
+                };
+                let tmp_cd;
+                let core_detail_json: &str = if core_detail.is_empty() {
+                    "\"\""
+                } else {
+                    tmp_cd = serde_json::to_string(&core_detail)?;
+                    &tmp_cd
+                };
+                write!(
+                    $w,
+                    "{{\"height\":{},\"block_hash\":\"{}\",\"blvm\":\"{}\",\"blvm_detail\":{},\"core\":\"{}\",\"core_detail\":{},\"match\":{},\"divergence\":{}}}\n",
+                    height,
+                    block_hash,
+                    blvm_tag,
+                    blvm_detail_json,
+                    core_tag,
+                    core_detail_json,
+                    verdict_match,
+                    divergence,
+                )
+            }};
+        }
         if !silent_stdout {
-            println!("{json}");
+            write_jsonl_line!(std::io::stdout())?;
         }
         if let Some(ref mut f) = sidecar {
-            writeln!(f, "{json}")?;
+            write_jsonl_line!(f)?;
         }
         if let Some(ref mut f) = jsonl_log {
-            writeln!(f, "{json}")?;
+            write_jsonl_line!(f)?;
         }
 
         if divergence {
@@ -1735,6 +1913,13 @@ fn main() -> Result<()> {
                                 if total_elapsed_ma > 0.0 { compared as f64 / total_elapsed_ma } else { 0.0 }
                             );
                             eprintln!("KERNEL_DIFF_STATUS MEM_AVAILABLE");
+                            // Flush buffered JSONL before exit so no records are lost.
+                            if let Some(ref mut f) = jsonl_log {
+                                let _ = f.flush();
+                            }
+                            if let Some(ref mut f) = sidecar {
+                                let _ = f.flush();
+                            }
                             return Ok(());
                         }
                         // Recovered: fall through so `height` advances (do not `continue` — would replay same height).
@@ -1788,6 +1973,12 @@ fn main() -> Result<()> {
                             if total_elapsed_rss > 0.0 { compared as f64 / total_elapsed_rss } else { 0.0 }
                         );
                         eprintln!("KERNEL_DIFF_STATUS RSS_LIMIT");
+                        if let Some(ref mut f) = jsonl_log {
+                            let _ = f.flush();
+                        }
+                        if let Some(ref mut f) = sidecar {
+                            let _ = f.flush();
+                        }
                         return Ok(());
                     }
                 }

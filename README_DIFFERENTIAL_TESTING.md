@@ -4,7 +4,20 @@
 
 Differential testing compares BLVM's validation results against Bitcoin Core's validation results to catch consensus divergences.
 
-For **BLVM vs `libbitcoinkernel`** block-by-block comparison (`block_kernel_diff`), chunk cache, checkpoints, and performance planning, see **`docs/DIFFERENTIAL_KERNEL_OPTIMIZATION_PLAN.md`**. Operational steps: **`docs/DIFFERENTIAL_KERNEL_RUNBOOK.md`**. Optional conservative thread caps: **`scripts/block_kernel_diff_wrapper.sh`**; Phase 0 metrics: **`docs/DIFFERENTIAL_KERNEL_PHASE0_METRICS.md`**. Checkpoint ladder: **`scripts/kernel-diff-orchestrator.sh checkpoints …`**.
+### Full-chain program (two phases = one complete differential)
+
+Mainnet full-chain work is **intentionally split** into two runs (too slow to combine):
+
+| Phase | Tool | Layer |
+|-------|------|-------|
+| **1** | `sort_merge_test` step 6 | **Scripts** — BLVM verifies every input on the canonical chain |
+| **2** | `block_kernel_diff` | **Block accept/reject** — BLVM vs `libbitcoinkernel`, scripts skipped symmetrically below assume-valid |
+
+Together they cover the full `connect_block` path. **Read `docs/FULL_CHAIN_DIFFERENTIAL.md`** before interpreting logs or claiming coverage (especially: Phase 1 is **not** per-input `bitcoinconsensus`; Phase 2 skip-scripts is **not** a gap).
+
+Operator runbook (paths, smoke, parallel lanes): workspace **`docs/DIFFERENTIAL_FULL_CHAIN_RUN_PLAN.md`**.
+
+For **BLVM vs `libbitcoinkernel`** performance tuning (`block_kernel_diff`), see **`docs/DIFFERENTIAL_KERNEL_OPTIMIZATION_PLAN.md`** if present. Wrapper: **`scripts/restart-kernel-diff-500k.sh`**, **`scripts/launch-parallel-lanes.sh`**.
 
 ## Features
 

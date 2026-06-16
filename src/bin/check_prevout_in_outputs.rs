@@ -12,7 +12,7 @@ use blvm_bench::sort_merge::output_refs::OutputRef;
 fn read_record_at_offset(reader: &mut BufReader<File>, offset: u64) -> Result<Option<OutputRef>> {
     reader.seek(SeekFrom::Start(offset))?;
 
-    // Read enough bytes to determine record size (at least 51 bytes for header)
+    // Read enough bytes for header + typical script (large scripts need more via from_bytes retry)
     let mut header = vec![0u8; 100];
     reader.read_exact(&mut header)?;
 

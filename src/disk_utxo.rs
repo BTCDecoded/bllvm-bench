@@ -44,7 +44,7 @@
 use anyhow::{bail, Context, Result};
 use blvm_protocol::types::{utxo_set_with_capacity, OutPoint, UtxoSet, UTXO};
 use rocksdb::{BlockBasedOptions, Cache, IteratorMode, Options, WriteBatch, WriteOptions, DB};
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -465,7 +465,7 @@ fn db_dir_disk_usage(path: &Path) -> u64 {
 
 /// Entries being written to RocksDB in the background. Prefetch must check this for
 /// keys not in the current overlay so reads stay consistent during async flushes.
-type PendingFlush = Arc<Mutex<Option<Arc<HashMap<OutPoint, OverlayEntry>>>>>;
+type PendingFlush = Arc<Mutex<Option<Arc<FxHashMap<OutPoint, OverlayEntry>>>>>;
 
 pub struct DiskUtxoSet {
     db: Arc<DB>,
@@ -479,7 +479,9 @@ pub struct DiskUtxoSet {
     /// Authoritative count of live UTXOs (overlay + DB, deduplicated).
     len: u64,
     /// Write-back cache.  `Some(arc)` = live, `None` = tombstone pending delete in DB.
-    overlay: HashMap<OutPoint, OverlayEntry>,
+    overlay: FxHashMap<OutPoint, OverlayEntry>,
+    /// Reusable scratch buffer for DB key encoding in `prefetch()` — avoids a per-block alloc.
+    scratch_keys: Vec<[u8; 36]>,
     /// Blocks since last RocksDB flush.
     blocks_since_commit: u64,
     commit_interval: u64,
@@ -544,7 +546,8 @@ impl DiskUtxoSet {
             inflight_tip: utxo_tip_height,
             utxo_tip_height,
             len,
-            overlay: HashMap::with_capacity(cap.min(1_000_000)),
+            overlay: FxHashMap::with_capacity_and_hasher(cap.min(1_000_000), Default::default()),
+            scratch_keys: Vec::new(),
             blocks_since_commit: 0,
             commit_interval: ci,
             overlay_cap: cap,
@@ -804,7 +807,9 @@ impl DiskUtxoSet {
     /// Build the in-memory `UtxoSet` that `connect_block_ibd` needs for one block.
     pub fn prefetch(&mut self, outpoints: &[OutPoint]) -> Result<UtxoSet> {
         let mut set = utxo_set_with_capacity(outpoints.len());
-        let mut need_pending: Vec<OutPoint> = Vec::new();
+        // Pre-size scratch vecs to the input count — avoids incremental reallocations
+        // on large SegWit blocks that can have 3000+ inputs.
+        let mut need_pending: Vec<OutPoint> = Vec::with_capacity(outpoints.len());
 
         for op in outpoints {
             match self.overlay.get(op) {
@@ -819,7 +824,7 @@ impl DiskUtxoSet {
         }
 
         // Check in-flight flush for keys not in the current overlay.
-        let mut need_db: Vec<OutPoint> = Vec::new();
+        let mut need_db: Vec<OutPoint> = Vec::with_capacity(need_pending.len());
         if !need_pending.is_empty() {
             let pending = self.pending_flush.lock().unwrap();
             if let Some(ref pf) = *pending {
@@ -841,9 +846,11 @@ impl DiskUtxoSet {
 
         if !need_db.is_empty() {
             need_db.sort_unstable_by(|a, b| a.hash.cmp(&b.hash).then(a.index.cmp(&b.index)));
-            let keys: Vec<[u8; 36]> = need_db.iter().map(outpoint_key).collect();
-            let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
-            let values = self.db.multi_get(key_refs);
+            // Reuse scratch buffer to avoid a per-block Vec<[u8;36]> allocation.
+            self.scratch_keys.clear();
+            self.scratch_keys.extend(need_db.iter().map(outpoint_key));
+            // Pass keys.iter() directly — [u8;36]: AsRef<[u8]>, so no key_refs Vec needed.
+            let values = self.db.multi_get(self.scratch_keys.iter());
             for (op, val_opt) in need_db.iter().zip(values) {
                 let v = val_opt?;
                 if let Some(data) = v {
@@ -856,12 +863,19 @@ impl DiskUtxoSet {
         Ok(set)
     }
 
+    /// `prefetched_keys` is the set of `OutPoint`s that were loaded from RocksDB (or pending_flush)
+    /// for this block.  Pass `prefetched.keys().copied().collect()` before consuming `prefetched`
+    /// in `connect_block` — avoids cloning the full `UtxoSet` (Arc values) just for key membership.
     pub fn apply_block_delta(
         &mut self,
         pre_outpoints: &[OutPoint],
         post_set: &UtxoSet,
-        prefetched: &UtxoSet,
+        prefetched_keys: &FxHashSet<OutPoint>,
     ) -> Result<()> {
+        // Acquire the pending_flush lock ONCE for the entire tombstone loop instead of once per
+        // outpoint.  For a 3000-input block where most UTXOs miss the overlay, the old code
+        // would lock/unlock the Mutex 3000 times; now it's a single acquire + release.
+        let pending = self.pending_flush.lock().unwrap();
         for op in pre_outpoints {
             if !post_set.contains_key(op) {
                 // Determine if this UTXO actually exists in the persistent layer.
@@ -873,17 +887,14 @@ impl DiskUtxoSet {
                     Some(None) => false,   // already tombstoned → don't double-count
                     None => {
                         // Not in current overlay. Check pending_flush (flushed-but-pending),
-                        // then fall back to prefetched (came from DB).
+                        // then fall back to prefetched_keys (came from DB).
                         // In-block UTXOs are absent from all three sources.
-                        let in_pending_live = self
-                            .pending_flush
-                            .lock()
-                            .unwrap()
+                        let in_pending_live = pending
                             .as_ref()
                             .and_then(|p| p.get(op))
                             .map(|e| e.is_some())
                             .unwrap_or(false);
-                        in_pending_live || prefetched.contains_key(op)
+                        in_pending_live || prefetched_keys.contains(op)
                     }
                 };
                 if was_live {
@@ -891,10 +902,19 @@ impl DiskUtxoSet {
                 }
             }
         }
+        drop(pending);
 
-        let pre_set: HashSet<&OutPoint> = pre_outpoints.iter().collect();
+        // Build a sorted view of pre_outpoints for O(log N) membership testing.
+        // Avoids a HashSet allocation (hash table with load factor overhead) per block.
+        // For large SegWit blocks (N=3000+) the sort is comparable cost to HashSet build
+        // but has better cache locality and no separate heap bucket array.
+        let mut sorted_pre: Vec<&OutPoint> = pre_outpoints.iter().collect();
+        sorted_pre.sort_unstable_by(|a, b| a.hash.cmp(&b.hash).then(a.index.cmp(&b.index)));
         for (op, utxo) in post_set.iter() {
-            if pre_set.contains(op) {
+            if sorted_pre
+                .binary_search_by(|p| p.hash.cmp(&op.hash).then(p.index.cmp(&op.index)))
+                .is_ok()
+            {
                 continue;
             }
             self.overlay.insert(*op, Some(Arc::clone(utxo)));
@@ -978,8 +998,8 @@ impl DiskUtxoSet {
         // Wait for any previous background flush before starting a new one.
         self.join_pending_flush()?;
 
-        // Take the overlay, replacing it with an empty HashMap (zero capacity).
-        // std::mem::take releases the old HashMap's allocated capacity when entries is dropped,
+        // Take the overlay, replacing it with an empty FxHashMap (zero capacity).
+        // std::mem::take releases the old map's allocated capacity when entries is dropped,
         // avoiding the retain-on-drain behavior of HashMap::drain() which keeps capacity alive.
         let entries = std::mem::take(&mut self.overlay);
         let n_entries = entries.len();
@@ -1027,7 +1047,7 @@ impl DiskUtxoSet {
 
     fn write_flush_batch(
         db: &DB,
-        entries: &HashMap<OutPoint, OverlayEntry>,
+        entries: &FxHashMap<OutPoint, OverlayEntry>,
         len: u64,
         tip: Option<u64>,
         durable: bool,
@@ -1241,11 +1261,16 @@ impl DiskUtxoSet {
 
 /// Collect all non-coinbase input OutPoints from a deserialized block.
 pub fn block_input_outpoints(block: &blvm_protocol::types::Block) -> Vec<OutPoint> {
-    let mut ops = Vec::new();
-    for (i, tx) in block.transactions.iter().enumerate() {
-        if i == 0 {
-            continue;
-        }
+    // Pre-count total inputs (excluding coinbase) to avoid Vec reallocations on large blocks.
+    // At 500k+ height a full block can have 3000+ inputs; reallocation-free is measurably faster.
+    let total: usize = block
+        .transactions
+        .iter()
+        .skip(1)
+        .map(|tx| tx.inputs.len())
+        .sum();
+    let mut ops = Vec::with_capacity(total);
+    for tx in block.transactions.iter().skip(1) {
         for input in &tx.inputs {
             ops.push(input.prevout);
         }

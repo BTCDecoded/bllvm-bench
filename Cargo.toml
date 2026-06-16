@@ -326,6 +326,16 @@ path = "src/bin/check_last_outputs.rs"
 required-features = ["differential"]
 
 [[bin]]
+name = "count_output_records"
+path = "src/bin/count_output_records.rs"
+required-features = ["differential"]
+
+[[bin]]
+name = "diagnose_output_integrity"
+path = "src/bin/diagnose_output_integrity.rs"
+required-features = ["differential"]
+
+[[bin]]
 name = "fix_missing_blocks_index"
 path = "src/bin/fix_missing_blocks_index.rs"
 required-features = ["chunk-cache"]

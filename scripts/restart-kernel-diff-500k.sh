@@ -67,10 +67,10 @@
 #                               RocksDB; 1M entries ≈ 120 MB RSS at ~120 bytes/entry.  Lower than
 #                               the old 3-6M to reduce BLVM RSS and leave more page cache for Core.)
 #   LOG_STEM                  default: kernel_diff_0_500k_v2
-#   RSS_LIMIT_MB              default: 0 (DISABLED — rely on MEM_AVAILABLE_FLOOR instead.
-#                               RSS spikes ~2 GB during RocksDB overlay flushes; any fixed
-#                               cap triggers restarts every ~100-200 blocks, each costing a
-#                               45-minute HDD seek.  MEM_AVAILABLE_FLOOR below prevents OOM.)
+#   RSS_LIMIT_MB              default: 22000 (22 GiB per lane; 4×22=88 GiB on 91 GiB host).
+#                               With KERNEL_BLOCKTREE_RAM=0 restarts use --import-from-core-tip
+#                               → SeedHeadlessRestore (~1 min, no seek) so hitting this cap
+#                               is cheap.  Set to 0 to disable and rely solely on MEM_AVAILABLE.)
 #   MEM_AVAILABLE_FLOOR_MB    default: 2000 (stop when MemAvailable drops below 2 GiB; 0 = disabled).
 #                               5000 was too strict on 16 GiB hosts — exits every ~1.5k blocks (~860k+)
 #                               before reaching 900k.  2000 still avoids most swap thrash; use 0 only if
@@ -88,8 +88,9 @@
 #   COINS_CACHE_MB            default: 1500 (Core LevelDB coins cache; balances write batching vs RAM.
 #                               2000 helped t_core_wait at 640k but + strict 5 GiB MemAvailable floor
 #                               caused exit every ~1.5k blocks on 16 GiB before height 900k.)
-#   KERNEL_BLOCKTREE_RAM      default: 1 (keep Core's block *index* in RAM; ~200 MiB at this height,
-#                               avoids dozens of small LevelDB reads per block; safer than CHAINSTATE_RAM)
+#   KERNEL_BLOCKTREE_RAM      default: 0 (write Core's block *index* to LevelDB on disk so that
+#                               --import-from-core-tip works on restart; avoids repeated seed_headless
+#                               fragmentation.  Set to 1 only if you never need clean restarts.)
 #   CHUNK_CHECKPOINT_EVERY    default: 25000 (write checkpoint every N blocks within a run)
 #   KERNEL_DIFF_PROGRESS_EVERY default: 100 — stderr KERNEL_DIFF_PROGRESS every N compared blocks
 #                               (binary default is 1000; lower = more frequent height/bps in the
@@ -145,8 +146,11 @@ BLOCK_CACHE_DIR="${BLOCK_CACHE_DIR:-$KERNEL_DIFF_DATA_ROOT/chunk-cache}"
 KERNEL_DIFF_NVME_ROOT="${KERNEL_DIFF_NVME_ROOT:-$KERNEL_DIFF_DATA_ROOT}"
 CORE_DATADIR="${CORE_DATADIR:-$KERNEL_DIFF_NVME_ROOT/core-datadir}"
 CORE_BLOCKS_DIR="${CORE_BLOCKS_DIR:-}"
-DISK_UTXO_PATH="${DISK_UTXO_PATH:-$KERNEL_DIFF_NVME_ROOT/disk-utxo}"
-export DISK_UTXO_ROCKSDB_CACHE_BYTES="${DISK_UTXO_ROCKSDB_CACHE_BYTES:-$((3*1024*1024*1024/2))}"
+DISK_UTXO_PATH="${DISK_UTXO_PATH-$KERNEL_DIFF_NVME_ROOT/disk-utxo}"  # note: -  not :-  so empty string disables disk-utxo (in-memory mode)
+# 3 GiB RocksDB cache per lane: at 800k+ heights the UTXO set is ~16 GB on disk; 512 MB
+# gives ~3% hit rate (every prefetch hits NVMe).  3 GiB ≈ 19% hit rate — measurable BPS gain.
+# 4 lanes × 3 GiB = 12 GiB; combined with 22 GiB RSS cap leaves headroom on 91 GiB.
+export DISK_UTXO_ROCKSDB_CACHE_BYTES="${DISK_UTXO_ROCKSDB_CACHE_BYTES:-$((3*1024*1024*1024))}"
 export DISK_UTXO_COMMIT_INTERVAL="${DISK_UTXO_COMMIT_INTERVAL:-500}"
 export DISK_UTXO_OVERLAY_CAP="${DISK_UTXO_OVERLAY_CAP:-1000000}"
 export DISK_UTXO_WRITE_BUFFER_MB="${DISK_UTXO_WRITE_BUFFER_MB:-64}"
@@ -160,16 +164,14 @@ export MIMALLOC_PAGE_RESET="${MIMALLOC_PAGE_RESET:-0}"
 # workload is not allocation-heavy enough for this to matter.
 export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-1}"
 LOG_STEM="${LOG_STEM:-kernel_diff_0_500k_v2}"
-RSS_LIMIT_MB="${RSS_LIMIT_MB:-0}"
 WORKER_THREADS="${WORKER_THREADS:-2}"
 COINS_CACHE_MB="${COINS_CACHE_MB:-1500}"
-# RSS_LIMIT_MB=0 disables the RSS-based graceful exit entirely.
-# Root cause of previous failures: the RSS briefly spikes during RocksDB overlay flush +
-# compaction (up to ~10GB at 640k), triggering the limit after only ~100-200 blocks per run.
-# Each restart forces a fresh ~45-minute HDD seek into chunk 5 — killing effective throughput.
-# Solution: rely ONLY on MEM_AVAILABLE_FLOOR to guard memory — triggers if the whole machine
-# is under pressure.  COINS_CACHE_MB=1500: still batches Core writes vs 500MB default; frees
-# ~500MB RSS vs 2000 so MemAvailable stays above the floor longer (reach 900k with fewer stops).
+# RSS_LIMIT_MB: per-lane RSS cap.  With KERNEL_BLOCKTREE_RAM=0 and working --import-from-core-tip,
+# restarts are cheap (~1 min seek-free via SeedHeadlessRestore), so this limit is safe to enable.
+# 3 active lanes × 28 GiB = 84 GiB on a 91 GiB system leaves ~7 GiB buffer for the OS.
+# Raised from 22000 to 28000 to reduce restart frequency: each restart costs 5–20 min of chunk
+# seek time (despite SeedHeadlessRestore, the block archive still needs seeking).
+RSS_LIMIT_MB="${RSS_LIMIT_MB:-28000}"
 MEM_AVAILABLE_FLOOR_MB="${MEM_AVAILABLE_FLOOR_MB:-2000}"
 MEM_AVAILABLE_RECOVERY_PASSES="${MEM_AVAILABLE_RECOVERY_PASSES:-3}"
 MEM_AVAILABLE_RECOVERY_SLOP_MB="${MEM_AVAILABLE_RECOVERY_SLOP_MB:-250}"
@@ -203,13 +205,14 @@ if [[ ! -f "$BLOCK_CACHE_DIR/chunks/chunks.meta" && ! -f "$BLOCK_CACHE_DIR/chunk
 fi
 
 # Kill any stale instance from a previous session.
-# Note: use 'blvm-bench.*block_kernel_diff' (not anchored with $) so the pattern matches
-# the full command line that has arguments after the binary name.
-n_old="$(pgrep -f 'blvm-bench.*block_kernel_diff' 2>/dev/null | wc -l || true)"
-pkill -f 'blvm-bench.*block_kernel_diff' 2>/dev/null || true
-sleep 0.5
-if [[ "${n_old:-0}" -gt 1 ]]; then
-  echo "warn: had $n_old block_kernel_diff processes — only one instance should run (RAM doubles)" >&2
+# Set KERNEL_DIFF_PARALLEL=1 to skip this kill (parallel-lanes mode — each lane manages its own process).
+if [[ "${KERNEL_DIFF_PARALLEL:-0}" != "1" ]]; then
+  n_old="$(pgrep -f 'blvm-bench.*block_kernel_diff' 2>/dev/null | wc -l || true)"
+  pkill -f 'blvm-bench.*block_kernel_diff' 2>/dev/null || true
+  sleep 0.5
+  if [[ "${n_old:-0}" -gt 1 ]]; then
+    echo "warn: had $n_old block_kernel_diff processes — only one instance should run (RAM doubles)" >&2
+  fi
 fi
 
 # ── Read the last known checkpoint position from the runner log ──────────────
@@ -287,22 +290,39 @@ while true; do
   # Smart wipe: check whether the RocksDB is already at checkpoint height H.
   # The binary writes `DISK_UTXO_PATH/.chunk_utxo_disk_tip = H` when it saves a durable
   # checkpoint; skipping the RocksDB wipe saves the 200+ second rehydration of 44M entries.
-  # Core is always wiped/reimported: headless chainstates created by seed_headless cannot be
-  # reopened by btck_chainstate_manager_create without running seed_headless again.
-  # (The .kernel_diff_core_tip file is written but reserved for future libbitcoinkernel support.)
+  #
+  # Core smart restore: `seed_headless_restore` rebuilds only the in-memory pprev stub chain from
+  # headers (no 57M-UTXO reload) when `.kernel_diff_core_tip` matches H. This eliminates the
+  # ~10–50 GiB glibc heap spike from cycling CCoinsViewCache on every restart.
   _DISK_TIP=""
   _SKIP_ROCKS_WIPE=0
+  _CORE_TIP=""
+  _SKIP_CORE_REIMPORT=0
   if [[ "$H" -gt 0 || "$START" -gt 1 ]]; then
     EXTRA_FLAGS+=(--blvm-prefer-utxo-snapshot)
-    if [[ -n "$DISK_UTXO_PATH" ]]; then
-      _DISK_TIP="$(cat "$DISK_UTXO_PATH/.chunk_utxo_disk_tip" 2>/dev/null | tr -d '[:space:]' || true)"
 
-      # Core: always wipe so its chainstate exactly matches H.
-      # Headless chainstates require seed_headless on every open — can't be reopened directly.
+    # ── Core tip check ──────────────────────────────────────────────────────────────────────────
+    # If `.kernel_diff_core_tip` contains H the coins DB is already seeded from a previous run
+    # that processed at least one block.  Use seed_headless_restore (headers-only) instead of
+    # wiping + re-importing the full snapshot.
+    _CORE_TIP_FILE="$CORE_DATADIR/.kernel_diff_core_tip"
+    if [[ -f "$_CORE_TIP_FILE" ]]; then
+      _CORE_TIP="$(cat "$_CORE_TIP_FILE" 2>/dev/null | tr -d '[:space:]' || true)"
+    fi
+    if [[ -d "$CORE_DATADIR/chainstate" ]] && [[ "$_CORE_TIP" == "$H" ]]; then
+      echo "   [loop $LOOP_ITER] Core already at height $H (core_tip=$_CORE_TIP) — using seed_headless_restore (no UTXO reload)" >&2
+      _SKIP_CORE_REIMPORT=1
+      EXTRA_FLAGS+=(--import-from-core-tip)
+    else
       if [[ -d "$CORE_DATADIR" ]]; then
-        echo "   [loop $LOOP_ITER] wiping Core datadir $CORE_DATADIR" >&2
+        echo "   [loop $LOOP_ITER] wiping Core datadir $CORE_DATADIR (core_tip=${_CORE_TIP:-missing} need=$H)" >&2
         rm -rf "$CORE_DATADIR"
       fi
+      EXTRA_FLAGS+=(--wipe-chainstate-db --import-from-deltas)
+    fi
+
+    if [[ -n "$DISK_UTXO_PATH" ]]; then
+      _DISK_TIP="$(cat "$DISK_UTXO_PATH/.chunk_utxo_disk_tip" 2>/dev/null | tr -d '[:space:]' || true)"
 
       # RocksDB: only wipe if disk_tip doesn't match H (saves the 44M-entry reimport).
       if [[ -d "$DISK_UTXO_PATH" ]] && [[ "$_DISK_TIP" == "$H" ]]; then
@@ -314,11 +334,6 @@ while true; do
           rm -rf "$DISK_UTXO_PATH"
         fi
       fi
-
-      EXTRA_FLAGS+=(--wipe-chainstate-db --import-from-deltas)
-    elif [[ ! -d "$CORE_DATADIR/chainstate" ]]; then
-      echo "   [loop $LOOP_ITER] Core chainstate missing — seeding from BLVM snapshot" >&2
-      EXTRA_FLAGS+=(--wipe-chainstate-db --import-from-deltas)
     fi
   fi
 
@@ -338,7 +353,7 @@ while true; do
   # KERNEL_CHAINSTATE_RAM=1 to put Core's chainstate in RAM (faster UTXO lookups but causes
   # LevelDB MemEnv to grow 2–3 GiB during comparison, triggering MemAvailable restarts).
   [[ "${KERNEL_CHAINSTATE_RAM:-0}" == "1" ]] && LIMIT_ARGS+=(--kernel-chainstate-ram)
-  [[ "${KERNEL_BLOCKTREE_RAM:-1}"  == "1" ]] && LIMIT_ARGS+=(--kernel-blocktree-ram)
+  [[ "${KERNEL_BLOCKTREE_RAM:-0}"  == "1" ]] && LIMIT_ARGS+=(--kernel-blocktree-ram)
   # Skip all script evaluation in Core's kernel for this window (matches BLVM when height < ASSUME).
   [[ "${KERNEL_SKIP_SCRIPTS:-1}" == "1" ]] && LIMIT_ARGS+=(--kernel-skip-scripts)
 
@@ -392,6 +407,18 @@ while true; do
   fi
 
   if [[ "$H" -le "$prev_H" && "$bin_exit" -ne 0 ]]; then
+    # If we were using --import-from-core-tip and it failed, delete the sentinel so the next
+    # iteration falls back to the safe wipe+reimport path (--import-from-deltas).
+    # With KERNEL_BLOCKTREE_RAM=0, the block tree is now persisted to disk, so
+    # --import-from-core-tip should succeed on the NEXT run after a wipe+reimport.
+    # We allow at most one fallback per loop counter (don't loop-fallback indefinitely).
+    _CORE_TIP_FILE="$CORE_DATADIR/.kernel_diff_core_tip"
+    if [[ " ${EXTRA_FLAGS[*]} " == *" --import-from-core-tip "* ]] && [[ -f "$_CORE_TIP_FILE" ]]; then
+      echo "   [loop $LOOP_ITER] --import-from-core-tip failed; wiping sentinel → next loop uses wipe+reimport" >&2
+      rm -f "$_CORE_TIP_FILE"
+      sleep 2
+      continue
+    fi
     echo "=== [loop $LOOP_ITER] ERROR: binary exited $bin_exit and no new checkpoint found (H stayed at $H). Aborting. ===" >&2
     exit 1
   fi
