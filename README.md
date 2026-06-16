@@ -52,6 +52,7 @@ See [.github/workflows/README.md](.github/workflows/README.md) for setup instruc
 - [README_DIFFERENTIAL_TESTING.md](README_DIFFERENTIAL_TESTING.md) - Differential testing guide
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
 - [docs/REGRESSION_DETECTION.md](docs/REGRESSION_DETECTION.md) - Regression detection & historical tracking
+- [docs/DATABASE_BACKEND_BENCHMARKS.md](docs/DATABASE_BACKEND_BENCHMARKS.md) - redb vs heed3 UTXO read benchmarks
 - [docs/](docs/) - Additional documentation
 - [.github/workflows/README.md](.github/workflows/README.md) - GitHub Actions setup
 

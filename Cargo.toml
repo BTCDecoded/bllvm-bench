@@ -130,6 +130,12 @@ disk-utxo = ["dep:rocksdb"]
 utxo-commitments = ["blvm-protocol/utxo-commitments"]
 # Benches that import `blvm_node` (storage, RPC integration, parallel validation, Dandelion/FIBRE).
 node-benches = ["dep:blvm-node"]
+# heed3/LMDB storage benches + zero-copy UTXO read paths (requires liblmdb at link time).
+node-benches-heed3 = ["node-benches", "blvm-node/heed3"]
+# RocksDB storage benches (builds librocksdb from source).
+node-benches-rocksdb = ["node-benches", "blvm-node/rocksdb"]
+# All storage backends for comparison runs.
+node-benches-storage = ["node-benches-rocksdb", "node-benches-heed3"]
 # Binaries that import `blvm_protocol` directly (not pulled by default).
 protocol-bins = ["dep:blvm-protocol"]
 
@@ -236,6 +242,12 @@ required-features = ["node-benches"]
 [[bench]]
 name = "storage_operations"
 path = "benches/node/storage_operations.rs"
+harness = false
+required-features = ["node-benches"]
+
+[[bench]]
+name = "database_backends"
+path = "benches/node/database_backends.rs"
 harness = false
 required-features = ["node-benches"]
 
@@ -526,6 +538,11 @@ path = "src/bin/analyze_failures.rs"
 [[bin]]
 name = "blvm-bench"
 path = "src/bin/blvm-bench.rs"
+
+[[bin]]
+name = "db_backend_bench"
+path = "src/bin/db_backend_bench.rs"
+required-features = ["node-benches"]
 
 [profile.release]
 opt-level = 3
