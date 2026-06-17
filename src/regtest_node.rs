@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 /// Port manager for allocating unique ports
 #[derive(Debug, Clone)]

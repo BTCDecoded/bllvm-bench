@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use blvm_bench::chunked_cache::ChunkedBlockIterator;
 use blvm_bench::remote_core_rpc::RemoteCoreRpcClient;
 use blvm_protocol::block::calculate_tx_id;
-use blvm_protocol::script::{verify_script_with_context_full, SigVersion};
+use blvm_protocol::script::{SigVersion, verify_script_with_context_full};
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
 use blvm_protocol::serialization::transaction::serialize_transaction;
 use blvm_protocol::types::Network;
@@ -138,8 +138,10 @@ async fn main() -> Result<()> {
         println!("  Script flags: 0x{:x}", flags);
 
         let prevout_values: Vec<i64> = prevouts.iter().map(|o| o.value).collect();
-        let prevout_script_pubkeys: Vec<&[u8]> =
-            prevouts.iter().map(|o| o.script_pubkey.as_slice()).collect();
+        let prevout_script_pubkeys: Vec<&[u8]> = prevouts
+            .iter()
+            .map(|o| o.script_pubkey.as_slice())
+            .collect();
 
         match verify_script_with_context_full(
             &input.script_sig,

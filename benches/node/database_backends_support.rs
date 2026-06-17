@@ -1,10 +1,10 @@
 //! Shared fixtures for storage backend benchmarks (redb / RocksDB / heed3).
 
 use anyhow::Result;
-use blvm_node::storage::database::{create_database, Database, DatabaseBackend, Tree};
-use blvm_node::storage::disk_utxo::OutPointKey;
-use blvm_node::storage::utxo_value_codec::{encode_utxo_with_codec, ValueCodec};
 use blvm_node::UTXO;
+use blvm_node::storage::database::{Database, DatabaseBackend, Tree, create_database};
+use blvm_node::storage::disk_utxo::OutPointKey;
+use blvm_node::storage::utxo_value_codec::{ValueCodec, encode_utxo_with_codec};
 use std::sync::Arc;
 use tempfile::TempDir;
 

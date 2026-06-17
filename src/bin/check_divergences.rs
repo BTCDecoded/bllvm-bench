@@ -36,9 +36,9 @@ async fn main() -> Result<()> {
     };
 
     println!("🔍 Divergence Checker (BATCHED TX HEX MODE)");
-    println!("  Batch size: {} txs/call", BATCH_SIZE);
+    println!("  Batch size: {BATCH_SIZE} txs/call");
     if let Some(l) = limit {
-        println!("  Limit: {} failures", l);
+        println!("  Limit: {l} failures");
     }
     println!("  File: {}", failures_file.display());
     println!();
@@ -104,10 +104,10 @@ async fn main() -> Result<()> {
         });
     }
 
-    println!("  Total script failures: {}", total_failures);
+    println!("  Total script failures: {total_failures}");
     println!("  With TX hex: {}", failures.len());
     if missing_hex > 0 {
-        println!("  ⚠️ Missing hex: {}", missing_hex);
+        println!("  ⚠️ Missing hex: {missing_hex}");
     }
 
     if failures.is_empty() {
@@ -116,10 +116,9 @@ async fn main() -> Result<()> {
     }
 
     let process_limit = limit.unwrap_or(failures.len()).min(failures.len());
-    let num_batches = (process_limit + BATCH_SIZE - 1) / BATCH_SIZE;
+    let num_batches = process_limit.div_ceil(BATCH_SIZE);
     println!(
-        "\nProcessing {} failures in ~{} batches...\n",
-        process_limit, num_batches
+        "\nProcessing {process_limit} failures in ~{num_batches} batches...\n"
     );
 
     // Stats
@@ -232,7 +231,7 @@ async fn main() -> Result<()> {
                         }
                     }
                     if rpc_errors < 5 {
-                        eprintln!("  Batch RPC error: {}", e);
+                        eprintln!("  Batch RPC error: {e}");
                     }
                 }
                 Err(_) => {
@@ -250,9 +249,18 @@ async fn main() -> Result<()> {
                 let elapsed = start.elapsed().as_secs_f64();
                 let rate = processed as f64 / elapsed.max(0.1);
                 let remaining = (process_limit - processed) as f64 / rate.max(0.1);
-                println!("[{}/{} txs, {} batches] ({:.1} tx/s, ETA {:.0}m) - {} div, {} ok, {} miss, {} err",
-                        processed, process_limit, rpc_calls, rate, remaining / 60.0,
-                        divergences, core_rejects, skipped_missing, rpc_errors);
+                println!(
+                    "[{}/{} txs, {} batches] ({:.1} tx/s, ETA {:.0}m) - {} div, {} ok, {} miss, {} err",
+                    processed,
+                    process_limit,
+                    rpc_calls,
+                    rate,
+                    remaining / 60.0,
+                    divergences,
+                    core_rejects,
+                    skipped_missing,
+                    rpc_errors
+                );
             }
         }
     }
@@ -306,15 +314,15 @@ async fn main() -> Result<()> {
         elapsed.as_secs_f64(),
         elapsed.as_secs_f64() / 60.0
     );
-    println!("  Txs checked: {}", processed);
+    println!("  Txs checked: {processed}");
     println!("  Unique txs: {}", checked_keys.len());
-    println!("  RPC calls: {} (batched)", rpc_calls);
-    println!("  Core also rejects: {} ✓", core_rejects);
-    println!("  Missing inputs: {}", skipped_missing);
-    println!("  RPC errors: {}", rpc_errors);
+    println!("  RPC calls: {rpc_calls} (batched)");
+    println!("  Core also rejects: {core_rejects} ✓");
+    println!("  Missing inputs: {skipped_missing}");
+    println!("  RPC errors: {rpc_errors}");
 
     if divergences > 0 {
-        println!("\n  ❌ DIVERGENCES: {}", divergences);
+        println!("\n  ❌ DIVERGENCES: {divergences}");
     } else {
         println!("\n  ✅ NO DIVERGENCES FOUND");
     }

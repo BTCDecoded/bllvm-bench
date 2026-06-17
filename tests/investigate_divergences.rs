@@ -4,8 +4,8 @@
 use anyhow::Result;
 use blvm_bench::checkpoint_persistence::CheckpointManager;
 use blvm_bench::chunked_cache::ChunkedBlockIterator;
-use blvm_protocol::script::{verify_script_with_context_full, SigVersion};
-use blvm_protocol::transaction_hash::{calculate_transaction_sighash, SighashType};
+use blvm_protocol::script::{SigVersion, verify_script_with_context_full};
+use blvm_protocol::transaction_hash::{SighashType, calculate_transaction_sighash};
 use blvm_protocol::types::{Network, TransactionOutput};
 use std::path::PathBuf;
 

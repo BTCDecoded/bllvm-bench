@@ -8,12 +8,12 @@
 //! 4. Matches Core's ConnectBlock benchmark methodology
 
 use blvm_protocol::block::{calculate_tx_id, connect_block};
-use blvm_protocol::transaction_hash::{calculate_transaction_sighash, SighashType};
+use blvm_protocol::transaction_hash::{SighashType, calculate_transaction_sighash};
 use blvm_protocol::{
-    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
-    TransactionOutput, UtxoSet, UTXO, Witness,
+    Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UTXO, UtxoSet,
+    Witness, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, Signing};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;

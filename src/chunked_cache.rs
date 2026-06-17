@@ -3,14 +3,16 @@
 //! Handles reading from chunked, compressed cache files created by split_and_compress_cache.sh
 //! Format: Multiple files like chunk_0.bin.zst, chunk_1.bin.zst, etc.
 
+use crate::chunk_index::{
+    BlockIndex, BlockIndexEntry, build_block_index, load_block_index, save_block_index,
+};
+use crate::node_rpc_client::{NodeRpcClient, RpcConfig};
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use std::collections::HashMap;
-use crate::chunk_index::{load_block_index, build_block_index, save_block_index, BlockIndex, BlockIndexEntry};
-use crate::node_rpc_client::{NodeRpcClient, RpcConfig};
 
 /// `KERNEL_DIFF_RPC_CHUNK_SKIP_MB` (MiB): if a zstd chunk seek would skip at least this many
 /// **decompressed** bytes, fetch the block via Bitcoin RPC (`getblockhash` + `getblock` verbosity 0)
@@ -95,7 +97,7 @@ pub fn load_chunk_metadata(chunks_dir: &Path) -> Result<Option<ChunkMetadata>> {
 }
 
 /// Decompress a zstd-compressed chunk file
-/// 
+///
 /// OPTIMIZATION: Returns a streaming reader instead of loading entire chunk into memory
 /// This prevents OOM for large chunks (50-60GB compressed = 200GB+ uncompressed)
 pub fn decompress_chunk_streaming(chunk_path: &Path) -> Result<std::process::Child> {
@@ -103,10 +105,13 @@ pub fn decompress_chunk_streaming(chunk_path: &Path) -> Result<std::process::Chi
 }
 
 /// Decompress with multi-threading support
-/// 
+///
 /// Uses zstd's -T flag for parallel decompression (zstd 1.5+)
 /// threads=0 means use all available cores
-pub fn decompress_chunk_streaming_mt(chunk_path: &Path, threads: usize) -> Result<std::process::Child> {
+pub fn decompress_chunk_streaming_mt(
+    chunk_path: &Path,
+    threads: usize,
+) -> Result<std::process::Child> {
     use std::process::{Command, Stdio};
 
     // OPTIMIZATION: Use streaming decompression with multi-threading
@@ -118,13 +123,18 @@ pub fn decompress_chunk_streaming_mt(chunk_path: &Path, threads: usize) -> Resul
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .with_context(|| format!("Failed to start zstd decompression: {}", chunk_path.display()))?;
+        .with_context(|| {
+            format!(
+                "Failed to start zstd decompression: {}",
+                chunk_path.display()
+            )
+        })?;
 
     Ok(child)
 }
 
 /// Decompress a zstd-compressed chunk file (legacy - loads entire chunk)
-/// 
+///
 /// WARNING: This loads the entire chunk into memory. For large chunks (50-60GB compressed),
 /// this can require 200GB+ RAM. Use decompress_chunk_streaming() instead.
 #[allow(dead_code)]
@@ -209,7 +219,10 @@ fn fadvise_dontneed(_path: &Path) {}
 
 /// Spawn `zstd -d --stdout` reading `chunk_file`, with clear errors when the **`zstd` binary** is
 /// missing (often reported as bare `No such file or directory` by the OS).
-fn spawn_zstd_decompress_stdout(chunk_file: &Path, multi_thread_decode: bool) -> Result<std::process::Child> {
+fn spawn_zstd_decompress_stdout(
+    chunk_file: &Path,
+    multi_thread_decode: bool,
+) -> Result<std::process::Child> {
     use std::io::ErrorKind;
     use std::process::{Command, Stdio};
 
@@ -384,47 +397,52 @@ impl ChunkedBlockIterator {
         verify_block_hash_against_index: bool,
     ) -> Result<Option<Self>> {
         // Load or build block index for correct ordering
-            let index = match load_block_index(chunks_dir)? {
-                Some(idx) => {
-                    println!("   ✅ Loaded block index ({} entries)", idx.len());
-                    idx
-                }
-                None => {
-                    println!("   🔨 Block index not found, building...");
-                    println!("   ⚠️  This may take a while (reading all blocks from chunks)...");
-                    
-                    // Try building index via chaining
-                    let idx = match build_block_index(chunks_dir) {
-                        Ok((idx, _)) if idx.len() > 1 => {
-                            // Chaining succeeded
-                            idx
-                        }
-                        Ok((idx, _)) => {
-                            // Chaining returned partial index (likely missing block 1)
-                            println!("   ⚠️  Chaining returned partial index ({} entries) - likely missing blocks", idx.len());
-                            println!("   💡 Missing blocks will be fetched from RPC during async index build");
-                            idx
-                        }
-                        Err(e) => {
-                            // Chaining failed
-                            eprintln!("   ⚠️  Chaining failed: {}", e);
-                            eprintln!("   ⚠️  Returning empty index - will use RPC-based indexing");
-                            BlockIndex::new()
-                        }
-                    };
-                    
-                    if idx.len() > 1 {
-                        save_block_index(chunks_dir, &idx)?;
-                        println!("   ✅ Built and saved block index ({} entries)", idx.len());
-                    } else {
-                        eprintln!("   ⚠️  Index build incomplete (only {} entries)", idx.len());
-                        eprintln!("   💡 This is expected if block 1 is missing from chunks");
-                        eprintln!("   💡 Index will be built via RPC in async context");
-                        // Don't save incomplete index - will be rebuilt with RPC
+        let index = match load_block_index(chunks_dir)? {
+            Some(idx) => {
+                println!("   ✅ Loaded block index ({} entries)", idx.len());
+                idx
+            }
+            None => {
+                println!("   🔨 Block index not found, building...");
+                println!("   ⚠️  This may take a while (reading all blocks from chunks)...");
+
+                // Try building index via chaining
+                let idx = match build_block_index(chunks_dir) {
+                    Ok((idx, _)) if idx.len() > 1 => {
+                        // Chaining succeeded
+                        idx
                     }
-                    idx
+                    Ok((idx, _)) => {
+                        // Chaining returned partial index (likely missing block 1)
+                        println!(
+                            "   ⚠️  Chaining returned partial index ({} entries) - likely missing blocks",
+                            idx.len()
+                        );
+                        println!(
+                            "   💡 Missing blocks will be fetched from RPC during async index build"
+                        );
+                        idx
+                    }
+                    Err(e) => {
+                        // Chaining failed
+                        eprintln!("   ⚠️  Chaining failed: {}", e);
+                        eprintln!("   ⚠️  Returning empty index - will use RPC-based indexing");
+                        BlockIndex::new()
+                    }
+                };
+
+                if idx.len() > 1 {
+                    save_block_index(chunks_dir, &idx)?;
+                    println!("   ✅ Built and saved block index ({} entries)", idx.len());
+                } else {
+                    eprintln!("   ⚠️  Index build incomplete (only {} entries)", idx.len());
+                    eprintln!("   💡 This is expected if block 1 is missing from chunks");
+                    eprintln!("   💡 Index will be built via RPC in async context");
+                    // Don't save incomplete index - will be rebuilt with RPC
                 }
-            };
+                idx
+            }
+        };
         let metadata = match load_chunk_metadata(chunks_dir)? {
             Some(m) => m,
             None => return Ok(None),
@@ -515,9 +533,7 @@ impl ChunkedBlockIterator {
             return;
         };
         let rt = global_tokio_runtime();
-        let handle = rt.spawn(async move {
-            client.getblock_bytes_at_height(next_height).await
-        });
+        let handle = rt.spawn(async move { client.getblock_bytes_at_height(next_height).await });
         self.rpc_prefetch_height = Some(next_height);
         self.rpc_prefetch = Some(handle);
     }
@@ -575,13 +591,11 @@ impl ChunkedBlockIterator {
         // Decompressed bytes we would skip before the block payload (same as the seek loop below).
         // If this exceeds KERNEL_DIFF_RPC_CHUNK_SKIP_* and RPC is configured, avoid opening the
         // zstd stream / long seek and use getblock for this and all following heights.
-        let skip_bytes = entry
-            .offset_in_chunk
-            .saturating_sub(if need_new_chunk {
-                0
-            } else {
-                self.current_offset
-            });
+        let skip_bytes = entry.offset_in_chunk.saturating_sub(if need_new_chunk {
+            0
+        } else {
+            self.current_offset
+        });
         if self.rpc_chunk_skip_bytes > 0 && skip_bytes >= self.rpc_chunk_skip_bytes {
             // Fetch first so we stay on chunk path if RPC is misconfigured.
             let block = self.fetch_block_via_rpc(height)?;
@@ -606,17 +620,29 @@ impl ChunkedBlockIterator {
                 return match result? {
                     Some(block_data) => Ok(Some(block_data)),
                     None => {
-                        eprintln!("   ⚠️  Missing block {} not found in chunk_missing — skipping", height);
+                        eprintln!(
+                            "   ⚠️  Missing block {} not found in chunk_missing — skipping",
+                            height
+                        );
                         Ok(None)
                     }
                 };
             }
 
-            let chunk_file = self.chunks_dir.join(format!("chunk_{}.bin.zst", entry.chunk_number));
+            let chunk_file = self
+                .chunks_dir
+                .join(format!("chunk_{}.bin.zst", entry.chunk_number));
             if !chunk_file.exists() {
-                anyhow::bail!("Chunk {} not found: {}", entry.chunk_number, chunk_file.display());
+                anyhow::bail!(
+                    "Chunk {} not found: {}",
+                    entry.chunk_number,
+                    chunk_file.display()
+                );
             }
-            eprintln!("   📦 Opening chunk {} for height {}", entry.chunk_number, height);
+            eprintln!(
+                "   📦 Opening chunk {} for height {}",
+                entry.chunk_number, height
+            );
 
             // Drop any existing page-cache pages for the chunk file before the zstd subprocess
             // opens it.  Sequential read of a 60 GB file fills ~5 GiB of OS page cache and drives
@@ -625,7 +651,9 @@ impl ChunkedBlockIterator {
             fadvise_dontneed(&chunk_file);
 
             let mut zstd_proc = spawn_zstd_decompress_stdout(&chunk_file, true)?;
-            let stdout = zstd_proc.stdout.take()
+            let stdout = zstd_proc
+                .stdout
+                .take()
                 .ok_or_else(|| anyhow::anyhow!("Failed to get zstd stdout"))?;
             // 16 MiB read-ahead is ample; the old 128 MiB buffer held unnecessary anonymous pages.
             let reader = std::io::BufReader::with_capacity(16 * 1024 * 1024, stdout);
@@ -639,7 +667,9 @@ impl ChunkedBlockIterator {
         }
 
         // Seek to block offset (read and discard bytes until we reach offset)
-        let reader = self.current_chunk_reader.as_mut()
+        let reader = self
+            .current_chunk_reader
+            .as_mut()
             .ok_or_else(|| anyhow::anyhow!("No chunk reader available"))?;
 
         if self.current_offset < entry.offset_in_chunk {
@@ -652,25 +682,39 @@ impl ChunkedBlockIterator {
             let progress_interval = 1024 * 1024 * 1024; // Log every 1GB
             let total_gb = skip_bytes as f64 / 1e9;
             if total_gb > 0.1 {
-                eprintln!("   ⏳ Seeking to block {} in chunk {} ({:.1}GB to skip)...", height, entry.chunk_number, total_gb);
+                eprintln!(
+                    "   ⏳ Seeking to block {} in chunk {} ({:.1}GB to skip)...",
+                    height, entry.chunk_number, total_gb
+                );
             }
 
             while remaining > 0 {
                 let to_read = remaining.min(skip_buf.len() as u64) as usize;
                 use std::io::Read;
-                let bytes_read = reader.read(&mut skip_buf[..to_read])
-                    .with_context(|| format!("Failed to read from chunk stream at offset {}", self.current_offset))?;
+                let bytes_read = reader.read(&mut skip_buf[..to_read]).with_context(|| {
+                    format!(
+                        "Failed to read from chunk stream at offset {}",
+                        self.current_offset
+                    )
+                })?;
                 if bytes_read == 0 {
-                    anyhow::bail!("Unexpected EOF while seeking to block offset (current={}, needed={})",
-                                 self.current_offset, entry.offset_in_chunk);
+                    anyhow::bail!(
+                        "Unexpected EOF while seeking to block offset (current={}, needed={})",
+                        self.current_offset,
+                        entry.offset_in_chunk
+                    );
                 }
                 remaining -= bytes_read as u64;
                 skipped_so_far += bytes_read as u64;
                 let prev_gb = (skipped_so_far - bytes_read as u64) / progress_interval;
                 let curr_gb = skipped_so_far / progress_interval;
                 if curr_gb > prev_gb && total_gb > 0.1 {
-                    eprintln!("   ⏳ Seeking in chunk {}: {:.1}GB / {:.1}GB...", entry.chunk_number,
-                             skipped_so_far as f64 / 1e9, total_gb);
+                    eprintln!(
+                        "   ⏳ Seeking in chunk {}: {:.1}GB / {:.1}GB...",
+                        entry.chunk_number,
+                        skipped_so_far as f64 / 1e9,
+                        total_gb
+                    );
                     // Every 8 GB of decompressed data skipped, tell the kernel to drop the
                     // compressed chunk's page-cache pages we've already consumed.  The
                     // compression ratio is ~4–6×, so 8 GB decompressed ≈ 1.5–2 GB of file
@@ -691,35 +735,52 @@ impl ChunkedBlockIterator {
         } else if self.current_offset > entry.offset_in_chunk {
             // Can't seek backwards in a stream - need to restart chunk
             // This shouldn't happen if we're reading in order, but handle it
-            anyhow::bail!("Cannot seek backwards in chunk stream (current={}, needed={})", 
-                         self.current_offset, entry.offset_in_chunk);
+            anyhow::bail!(
+                "Cannot seek backwards in chunk stream (current={}, needed={})",
+                self.current_offset,
+                entry.offset_in_chunk
+            );
         }
 
         // Read block length (4 bytes)
         let mut len_buf = [0u8; 4];
         use std::io::Read;
-        reader.read_exact(&mut len_buf)
-            .with_context(|| format!("Failed to read block length at height {} (offset {})",
-                                     height, self.current_offset))?;
+        reader.read_exact(&mut len_buf).with_context(|| {
+            format!(
+                "Failed to read block length at height {} (offset {})",
+                height, self.current_offset
+            )
+        })?;
 
         self.current_offset += 4;
 
         let block_len = u32::from_le_bytes(len_buf) as usize;
         if block_len > 10 * 1024 * 1024 || block_len < 88 {
-            anyhow::bail!("Invalid block size: {} bytes (height {}, offset {})",
-                         block_len, height, self.current_offset);
+            anyhow::bail!(
+                "Invalid block size: {} bytes (height {}, offset {})",
+                block_len,
+                height,
+                self.current_offset
+            );
         }
 
         // Read block data
         let mut block_data = vec![0u8; block_len];
         let data_read_start = std::time::Instant::now();
-        reader.read_exact(&mut block_data)
-            .with_context(|| format!("Failed to read block data at height {} (offset {}, len {})",
-                                     height, self.current_offset, block_len))?;
+        reader.read_exact(&mut block_data).with_context(|| {
+            format!(
+                "Failed to read block data at height {} (offset {}, len {})",
+                height, self.current_offset, block_len
+            )
+        })?;
         let data_read_duration = data_read_start.elapsed();
         if data_read_duration.as_secs() > 1 {
-            eprintln!("   ⚠️  Slow block read: height {} took {:.2}s ({} bytes)",
-                     height, data_read_duration.as_secs_f64(), block_len);
+            eprintln!(
+                "   ⚠️  Slow block read: height {} took {:.2}s ({} bytes)",
+                height,
+                data_read_duration.as_secs_f64(),
+                block_len
+            );
         }
 
         self.current_offset += block_len as u64;
@@ -752,8 +813,9 @@ impl ChunkedBlockIterator {
                 // Check if we're at the expected position for sequential read
                 // If current_offset matches expected offset from index, we can read sequentially
                 if let Some(entry) = self.index.get(&self.current_height) {
-                    if self.current_chunk_number == Some(entry.chunk_number) 
-                        && self.current_offset == entry.offset_in_chunk {
+                    if self.current_chunk_number == Some(entry.chunk_number)
+                        && self.current_offset == entry.offset_in_chunk
+                    {
                         // We're at the right position - read sequentially (fast path)
                         use std::io::Read;
                         let mut len_buf = [0u8; 4];
@@ -783,7 +845,7 @@ impl ChunkedBlockIterator {
                     }
                 }
             }
-            
+
             // Fallback: Use index to load block (for non-sequential access or chunk boundaries)
             match self.load_block_from_index(self.current_height) {
                 Ok(Some(block)) => {
@@ -797,10 +859,12 @@ impl ChunkedBlockIterator {
                         block_hash.reverse();
                         if let Some(entry) = self.index.get(&self.current_height) {
                             if block_hash != entry.block_hash {
-                                eprintln!("   ⚠️  Block hash mismatch at height {}! expected={} got={}",
-                                         self.current_height,
-                                         hex::encode(entry.block_hash),
-                                         hex::encode(block_hash));
+                                eprintln!(
+                                    "   ⚠️  Block hash mismatch at height {}! expected={} got={}",
+                                    self.current_height,
+                                    hex::encode(entry.block_hash),
+                                    hex::encode(block_hash)
+                                );
                             }
                         }
                     }
@@ -808,13 +872,19 @@ impl ChunkedBlockIterator {
                     return Ok(Some(block));
                 }
                 Ok(None) => {
-                    eprintln!("   ⚠️  Block {} missing from index — skipping", self.current_height);
+                    eprintln!(
+                        "   ⚠️  Block {} missing from index — skipping",
+                        self.current_height
+                    );
                     self.current_height += 1;
                     continue;
                 }
                 Err(e) => {
                     let error_height = self.current_height;
-                    eprintln!("   ❌ Chunked cache: failed loading block at height {}.", error_height);
+                    eprintln!(
+                        "   ❌ Chunked cache: failed loading block at height {}.",
+                        error_height
+                    );
                     eprintln!("       {:#}", e);
                     return Err(e.context(format!(
                         "chunked block read failed at height {} (common cause: missing `zstd` on PATH or missing chunk file)",
@@ -824,7 +894,6 @@ impl ChunkedBlockIterator {
             };
         }
     }
-
 }
 
 impl Drop for ChunkedBlockIterator {
@@ -836,7 +905,7 @@ impl Drop for ChunkedBlockIterator {
 }
 
 /// Load blocks from chunked cache (legacy - loads all into memory)
-/// 
+///
 /// WARNING: This loads all blocks into memory. For large ranges, use ChunkedBlockIterator instead.
 /// This function is kept for backward compatibility but should not be used for >10k blocks.
 pub fn load_chunked_cache(
@@ -853,8 +922,10 @@ pub fn load_chunked_cache(
         }
     };
 
-    println!("📂 Loading from chunked cache: {} chunks, {} total blocks", 
-             metadata.num_chunks, metadata.total_blocks);
+    println!(
+        "📂 Loading from chunked cache: {} chunks, {} total blocks",
+        metadata.num_chunks, metadata.total_blocks
+    );
 
     // Determine which chunks we need
     let start_idx = start_height.unwrap_or(0) as usize;
@@ -867,25 +938,31 @@ pub fn load_chunked_cache(
     let start_chunk = start_idx / metadata.blocks_per_chunk as usize;
     let end_chunk = (end_idx - 1) / metadata.blocks_per_chunk as usize;
 
-    println!("   Loading chunks {}-{} (blocks {}-{})", 
-             start_chunk, end_chunk, start_idx, end_idx);
+    println!(
+        "   Loading chunks {}-{} (blocks {}-{})",
+        start_chunk, end_chunk, start_idx, end_idx
+    );
 
     // CRITICAL FIX: For large ranges, warn and suggest using DirectFile instead
     // Loading 125,000 blocks = ~187GB memory (125k × 1.5MB avg)
     let total_blocks_to_load = end_idx - start_idx;
     if total_blocks_to_load > 10_000 {
-        eprintln!("⚠️  WARNING: Attempting to load {} blocks into memory (requires ~{}GB RAM)", 
-                 total_blocks_to_load, 
-                 (total_blocks_to_load * 1_500_000) / 1_000_000_000);
+        eprintln!(
+            "⚠️  WARNING: Attempting to load {} blocks into memory (requires ~{}GB RAM)",
+            total_blocks_to_load,
+            (total_blocks_to_load * 1_500_000) / 1_000_000_000
+        );
         eprintln!("   💡 For large ranges, use DirectFile source instead of chunked cache");
         eprintln!("   💡 Chunked cache is optimized for small ranges (<10k blocks)");
         eprintln!("   💡 Consider processing in smaller batches or using DirectFile");
-        
+
         // For very large ranges, return None to force DirectFile usage
         if total_blocks_to_load > 50_000 {
-            eprintln!("   ❌ Refusing to load {} blocks - would require ~{}GB RAM", 
-                     total_blocks_to_load,
-                     (total_blocks_to_load * 1_500_000) / 1_000_000_000);
+            eprintln!(
+                "   ❌ Refusing to load {} blocks - would require ~{}GB RAM",
+                total_blocks_to_load,
+                (total_blocks_to_load * 1_500_000) / 1_000_000_000
+            );
             return Ok(None); // Force fallback to DirectFile
         }
     }
@@ -895,70 +972,88 @@ pub fn load_chunked_cache(
     let mut all_blocks = Vec::new();
     for chunk_num in start_chunk..=end_chunk.min(metadata.num_chunks - 1) {
         let chunk_file = chunks_dir.join(format!("chunk_{}.bin.zst", chunk_num));
-        
+
         if !chunk_file.exists() {
-            eprintln!("   ⚠️  Chunk {} not found: {}", chunk_num, chunk_file.display());
+            eprintln!(
+                "   ⚠️  Chunk {} not found: {}",
+                chunk_num,
+                chunk_file.display()
+            );
             continue;
         }
 
         println!("   📦 Streaming blocks from chunk {}...", chunk_num);
-        
+
         // OPTIMIZATION: Stream decompression instead of loading entire chunk
         use std::io::{BufReader, Read};
 
         let mut zstd_proc = spawn_zstd_decompress_stdout(&chunk_file, false)?;
-        
-        let mut reader = BufReader::with_capacity(128 * 1024 * 1024, // 128MB buffer
-            zstd_proc.stdout.take()
-                .ok_or_else(|| anyhow::anyhow!("Failed to get zstd stdout"))?);
-        
+
+        let mut reader = BufReader::with_capacity(
+            128 * 1024 * 1024, // 128MB buffer
+            zstd_proc
+                .stdout
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("Failed to get zstd stdout"))?,
+        );
+
         // Read blocks one at a time (streaming)
         let mut blocks_in_chunk = 0;
         loop {
             let mut len_buf = [0u8; 4];
             match reader.read_exact(&mut len_buf) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
                 Err(e) => {
                     let _ = zstd_proc.wait(); // Clean up
                     return Err(e.into());
                 }
             }
-            
+
             let block_len = u32::from_le_bytes(len_buf) as usize;
-            
+
             // Validate block size
             if block_len > 10 * 1024 * 1024 || block_len < 88 {
                 let _ = zstd_proc.wait();
-                anyhow::bail!("Invalid block size in chunk {}: {} bytes", chunk_num, block_len);
+                anyhow::bail!(
+                    "Invalid block size in chunk {}: {} bytes",
+                    chunk_num,
+                    block_len
+                );
             }
-            
+
             // Read block data
             let mut block_data = vec![0u8; block_len];
             reader.read_exact(&mut block_data)?;
-            
+
             all_blocks.push(block_data);
             blocks_in_chunk += 1;
-            
+
             // OPTIMIZATION: Reduce progress reporting frequency (less I/O overhead)
             if blocks_in_chunk % 25000 == 0 {
-                println!("     Loaded {}/{} blocks from chunk {}...", 
-                        blocks_in_chunk, metadata.blocks_per_chunk, chunk_num);
+                println!(
+                    "     Loaded {}/{} blocks from chunk {}...",
+                    blocks_in_chunk, metadata.blocks_per_chunk, chunk_num
+                );
             }
         }
-        
+
         // Wait for zstd to finish
         let status = zstd_proc.wait()?;
         if !status.success() {
             anyhow::bail!("zstd decompression failed for chunk {}", chunk_num);
         }
-        
-        println!("   ✅ Loaded {} blocks from chunk {}", blocks_in_chunk, chunk_num);
+
+        println!(
+            "   ✅ Loaded {} blocks from chunk {}",
+            blocks_in_chunk, chunk_num
+        );
     }
 
     // Filter to requested range
     if start_idx > 0 || end_idx < all_blocks.len() {
-        let filtered: Vec<_> = all_blocks.into_iter()
+        let filtered: Vec<_> = all_blocks
+            .into_iter()
             .skip(start_idx)
             .take(end_idx - start_idx)
             .collect();
@@ -981,11 +1076,8 @@ pub fn get_chunks_dir() -> Option<PathBuf> {
         if path.exists()
             && (path.join("chunks.meta").exists()
                 || std::fs::read_dir(&path).ok().is_some_and(|rd| {
-                    rd.flatten().any(|e| {
-                        e.file_name()
-                            .to_string_lossy()
-                            .starts_with("chunk_")
-                    })
+                    rd.flatten()
+                        .any(|e| e.file_name().to_string_lossy().starts_with("chunk_"))
                 }))
         {
             return Some(path);
@@ -1011,7 +1103,7 @@ pub fn chunked_cache_exists() -> bool {
 }
 
 /// Shared chunk cache manager - decompresses each chunk once and allows concurrent block reads
-/// 
+///
 /// CRITICAL OPTIMIZATION: With only 8 chunks total, we can maintain a cache of chunk readers
 /// to avoid re-decompressing the same chunk multiple times when loading blocks in parallel.
 pub struct SharedChunkCache {
@@ -1019,7 +1111,18 @@ pub struct SharedChunkCache {
     index: Arc<BlockIndex>,
     // Cache of chunk readers: chunk_number -> (reader, zstd_process, current_offset)
     // CRITICAL: Limited to prevent OOM - each reader holds a zstd process and large buffer
-    chunk_readers: Arc<Mutex<HashMap<usize, (std::io::BufReader<std::process::ChildStdout>, std::process::Child, u64)>>>,
+    chunk_readers: Arc<
+        Mutex<
+            HashMap<
+                usize,
+                (
+                    std::io::BufReader<std::process::ChildStdout>,
+                    std::process::Child,
+                    u64,
+                ),
+            >,
+        >,
+    >,
     max_chunk_readers: usize,
 }
 
@@ -1048,7 +1151,7 @@ impl SharedChunkCache {
 
         // Get or create chunk reader
         let mut readers = self.chunk_readers.lock().unwrap();
-        
+
         // CRITICAL: Evict oldest chunk readers if we're at the limit
         if readers.len() >= self.max_chunk_readers && !readers.contains_key(&entry.chunk_number) {
             // Evict first (oldest) chunk reader
@@ -1059,12 +1162,18 @@ impl SharedChunkCache {
                 }
             }
         }
-        
+
         // Check if we need to create new chunk reader
         if !readers.contains_key(&entry.chunk_number) {
-            let chunk_file = self.chunks_dir.join(format!("chunk_{}.bin.zst", entry.chunk_number));
+            let chunk_file = self
+                .chunks_dir
+                .join(format!("chunk_{}.bin.zst", entry.chunk_number));
             if !chunk_file.exists() {
-                anyhow::bail!("Chunk {} not found: {}", entry.chunk_number, chunk_file.display());
+                anyhow::bail!(
+                    "Chunk {} not found: {}",
+                    entry.chunk_number,
+                    chunk_file.display()
+                );
             }
 
             let zstd_threads = std::cmp::min(6, num_cpus::get().saturating_sub(2));
@@ -1077,16 +1186,20 @@ impl SharedChunkCache {
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())
                 .spawn()
-                .with_context(|| format!("Failed to start zstd for chunk {}", entry.chunk_number))?;
+                .with_context(|| {
+                    format!("Failed to start zstd for chunk {}", entry.chunk_number)
+                })?;
 
-            let stdout = zstd_proc.stdout.take()
+            let stdout = zstd_proc
+                .stdout
+                .take()
                 .ok_or_else(|| anyhow::anyhow!("Failed to get zstd stdout"))?;
             let reader = std::io::BufReader::with_capacity(128 * 1024 * 1024, stdout);
             let offset = 0u64;
-            
+
             readers.insert(entry.chunk_number, (reader, zstd_proc, offset));
         }
-        
+
         // Now get the reader (we know it exists)
         let (reader, _proc, current_offset) = readers.get_mut(&entry.chunk_number).unwrap();
 
@@ -1100,10 +1213,17 @@ impl SharedChunkCache {
             use std::io::Read;
             while remaining > 0 {
                 let to_read = remaining.min(skip_buf.len() as u64) as usize;
-                let bytes_read = reader.read(&mut skip_buf[..to_read])
-                    .with_context(|| format!("Failed to seek to offset {} in chunk {}", entry.offset_in_chunk, entry.chunk_number))?;
+                let bytes_read = reader.read(&mut skip_buf[..to_read]).with_context(|| {
+                    format!(
+                        "Failed to seek to offset {} in chunk {}",
+                        entry.offset_in_chunk, entry.chunk_number
+                    )
+                })?;
                 if bytes_read == 0 {
-                    anyhow::bail!("Unexpected EOF while seeking in chunk {}", entry.chunk_number);
+                    anyhow::bail!(
+                        "Unexpected EOF while seeking in chunk {}",
+                        entry.chunk_number
+                    );
                 }
                 remaining -= bytes_read as u64;
             }
@@ -1111,25 +1231,35 @@ impl SharedChunkCache {
         } else if *current_offset > entry.offset_in_chunk {
             // Can't seek backwards - would need to restart chunk, but this should be rare
             // For now, just fail (could optimize by restarting chunk if needed)
-            anyhow::bail!("Cannot seek backwards in chunk {} (current={}, needed={})", 
-                         entry.chunk_number, *current_offset, entry.offset_in_chunk);
+            anyhow::bail!(
+                "Cannot seek backwards in chunk {} (current={}, needed={})",
+                entry.chunk_number,
+                *current_offset,
+                entry.offset_in_chunk
+            );
         }
 
         // Read block length
         let mut len_buf = [0u8; 4];
         use std::io::Read;
-        reader.read_exact(&mut len_buf)
+        reader
+            .read_exact(&mut len_buf)
             .with_context(|| format!("Failed to read block length at height {}", height))?;
         *current_offset += 4;
 
         let block_len = u32::from_le_bytes(len_buf) as usize;
         if block_len > 10 * 1024 * 1024 || block_len < 88 {
-            anyhow::bail!("Invalid block size: {} bytes (height {})", block_len, height);
+            anyhow::bail!(
+                "Invalid block size: {} bytes (height {})",
+                block_len,
+                height
+            );
         }
 
         // Read block data
         let mut block_data = vec![0u8; block_len];
-        reader.read_exact(&mut block_data)
+        reader
+            .read_exact(&mut block_data)
             .with_context(|| format!("Failed to read block data at height {}", height))?;
         *current_offset += block_len as u64;
 

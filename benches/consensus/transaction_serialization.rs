@@ -3,9 +3,9 @@
 
 use blvm_protocol::serialization::transaction::serialize_transaction;
 use blvm_protocol::{
-    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
+    OutPoint, Transaction, TransactionInput, TransactionOutput, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_transaction() -> Transaction {
     // Create a transaction similar to Core's benchmark

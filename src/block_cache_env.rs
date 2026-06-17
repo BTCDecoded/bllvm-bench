@@ -15,8 +15,16 @@ fn non_empty_env_triple(primary: &str, alt: &str, legacy: &str) -> bool {
 /// True when remote-Core SSH/RPC env is set (`REMOTE_CORE_*`, or legacy `LAND_NODE_*` / `START9_*`).
 pub fn remote_core_rpc_env_ready() -> bool {
     non_empty_env_triple("REMOTE_CORE_SSH_KEY", "LAND_NODE_SSH_KEY", "START9_SSH_KEY")
-        && non_empty_env_triple("REMOTE_CORE_SSH_HOST", "LAND_NODE_SSH_HOST", "START9_SSH_HOST")
-        && non_empty_env_triple("REMOTE_CORE_RPC_USER", "LAND_NODE_RPC_USER", "START9_RPC_USER")
+        && non_empty_env_triple(
+            "REMOTE_CORE_SSH_HOST",
+            "LAND_NODE_SSH_HOST",
+            "START9_SSH_HOST",
+        )
+        && non_empty_env_triple(
+            "REMOTE_CORE_RPC_USER",
+            "LAND_NODE_RPC_USER",
+            "START9_RPC_USER",
+        )
         && non_empty_env_triple(
             "REMOTE_CORE_RPC_PASSWORD",
             "LAND_NODE_RPC_PASSWORD",
@@ -27,10 +35,7 @@ pub fn remote_core_rpc_env_ready() -> bool {
 /// XOR-packaged / out-of-order `blk*.dat` trees: set `REMOTE_CORE_XOR_BLOCKFILES=1` (or `true`),
 /// or legacy `LAND_NODE_XOR_BLOCKFILES`, or path substring `bitcoin-start9` under `path`.
 pub fn remote_core_xor_blockfiles_hint(path: &Path) -> bool {
-    for key in [
-        "REMOTE_CORE_XOR_BLOCKFILES",
-        "LAND_NODE_XOR_BLOCKFILES",
-    ] {
+    for key in ["REMOTE_CORE_XOR_BLOCKFILES", "LAND_NODE_XOR_BLOCKFILES"] {
         if std::env::var(key)
             .map(|v| {
                 matches!(
@@ -107,10 +112,7 @@ pub fn require_block_cache_dir() -> anyhow::Result<PathBuf> {
         )
     })?;
     if !p.exists() {
-        anyhow::bail!(
-            "BLOCK_CACHE_DIR does not exist: {}",
-            p.display()
-        );
+        anyhow::bail!("BLOCK_CACHE_DIR does not exist: {}", p.display());
     }
     Ok(p)
 }

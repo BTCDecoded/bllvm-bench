@@ -91,7 +91,7 @@ pub fn run_with_perf(benchmark_cmd: &[&str]) -> Result<DeepAnalysisMetrics, Stri
     // Run perf
     let output = perf_cmd
         .output()
-        .map_err(|e| format!("Failed to run perf: {}", e))?;
+        .map_err(|e| format!("Failed to run perf: {e}"))?;
 
     if !output.status.success() {
         return Err(format!(
@@ -108,7 +108,7 @@ fn parse_perf_csv(path: &str) -> Result<DeepAnalysisMetrics, String> {
     use std::fs;
     use std::io::{BufRead, BufReader};
 
-    let file = fs::File::open(path).map_err(|e| format!("Failed to open perf output: {}", e))?;
+    let file = fs::File::open(path).map_err(|e| format!("Failed to open perf output: {e}"))?;
 
     let reader = BufReader::new(file);
     let mut metrics = DeepAnalysisMetrics {
@@ -136,7 +136,7 @@ fn parse_perf_csv(path: &str) -> Result<DeepAnalysisMetrics, String> {
     };
 
     for line in reader.lines() {
-        let line = line.map_err(|e| format!("Failed to read line: {}", e))?;
+        let line = line.map_err(|e| format!("Failed to read line: {e}"))?;
         let parts: Vec<&str> = line.split(',').collect();
         if parts.is_empty() {
             continue;

@@ -64,7 +64,7 @@ jobs:
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           override: true
 
       - name: Install system dependencies
@@ -556,7 +556,7 @@ jobs:
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           override: true
 
       - name: Setup Commons dependencies

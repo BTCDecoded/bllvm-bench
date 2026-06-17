@@ -1,8 +1,8 @@
 use blvm_protocol::transaction::check_transaction;
 use blvm_protocol::{
-    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
+    OutPoint, Transaction, TransactionInput, TransactionOutput, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_transaction() -> Transaction {
     Transaction {
@@ -17,7 +17,10 @@ fn create_test_transaction() -> Transaction {
         }],
         outputs: tx_outputs![TransactionOutput {
             value: 100000000,
-            script_pubkey: vec![blvm_protocol::opcodes::OP_1, blvm_protocol::opcodes::OP_EQUAL],
+            script_pubkey: vec![
+                blvm_protocol::opcodes::OP_1,
+                blvm_protocol::opcodes::OP_EQUAL
+            ],
         }],
         lock_time: 0,
     }

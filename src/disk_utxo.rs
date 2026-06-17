@@ -41,9 +41,9 @@
 //!   kernel page cache and enters process heap), leaving less total page cache for both DBs.
 //!   Only useful on machines with >32 GB RAM where both DBs fit in page cache simultaneously.
 
-use anyhow::{bail, Context, Result};
-use blvm_protocol::types::{utxo_set_with_capacity, OutPoint, UtxoSet, UTXO};
-use rocksdb::{BlockBasedOptions, Cache, IteratorMode, Options, WriteBatch, WriteOptions, DB};
+use anyhow::{Context, Result, bail};
+use blvm_protocol::types::{OutPoint, UTXO, UtxoSet, utxo_set_with_capacity};
+use rocksdb::{BlockBasedOptions, Cache, DB, IteratorMode, Options, WriteBatch, WriteOptions};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 use std::io::Read;
@@ -651,7 +651,9 @@ impl DiskUtxoSet {
             if single_tx { ", SINGLE_BATCH" } else { "" },
         );
         if single_tx {
-            eprintln!("   [disk-utxo] warning: SINGLE_BATCH can use many GB RAM; OOM possible on small hosts");
+            eprintln!(
+                "   [disk-utxo] warning: SINGLE_BATCH can use many GB RAM; OOM possible on small hosts"
+            );
         }
 
         if self.len > 0 || db_has_utxo_rows(&self.db)? {

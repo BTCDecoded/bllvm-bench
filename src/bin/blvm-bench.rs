@@ -63,7 +63,7 @@ fn main() -> Result<()> {
 
             if let Some(bench_name) = name {
                 cmd.arg("--bench").arg(&bench_name);
-                println!("Running benchmark: {}", bench_name);
+                println!("Running benchmark: {bench_name}");
             } else {
                 println!("Running all benchmarks");
             }
@@ -80,7 +80,7 @@ fn main() -> Result<()> {
             if all {
                 shell::run_all()?;
             } else if let Some(suite) = suite {
-                println!("Running suite: {}", suite);
+                println!("Running suite: {suite}");
                 shell::run_benchmark(&suite)?;
             } else if let Some(script) = script {
                 shell::run_benchmark(&script)?;

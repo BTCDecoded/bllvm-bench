@@ -17,7 +17,9 @@ fn main() -> Result<()> {
     let mut txid = [0u8; 32];
     hex::decode_to_slice(txid_hex, &mut txid)?;
 
-    let chunks_dir = blvm_bench::require_block_cache_dir()?.to_string_lossy().into_owned();
+    let chunks_dir = blvm_bench::require_block_cache_dir()?
+        .to_string_lossy()
+        .into_owned();
     let chunks_dir = std::path::PathBuf::from(chunks_dir);
 
     let outputs_sorted = chunks_dir.join("sort_merge_data/outputs_sorted.bin");

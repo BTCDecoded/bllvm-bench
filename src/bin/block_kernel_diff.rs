@@ -109,13 +109,13 @@ use blvm_bench::kernel_diff_paths::{
     kernel_diff_default_core_datadir, network_time_for_historical_chunk_replay,
     resolve_block_cache_root, resolve_chunks_data_dir,
 };
+use blvm_protocol::UtxoSet;
 use blvm_protocol::bip113::MEDIAN_TIME_BLOCKS;
 use blvm_protocol::block::connect_block_with_chainwork as connect_block_assume_valid;
 use blvm_protocol::constants::{DIFFICULTY_ADJUSTMENT_INTERVAL, MAX_TARGET};
 use blvm_protocol::pow::{check_proof_of_work, get_next_work_required};
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
 use blvm_protocol::types::{BlockHeader, Network, ValidationResult};
-use blvm_protocol::UtxoSet;
 use clap::Parser;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -123,8 +123,8 @@ use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(name = "block_kernel_diff")]
@@ -628,7 +628,7 @@ fn validate_header_nbits(
         let pb = match parent_bits {
             Some(b) => b,
             None => {
-                return Some("internal: missing parent nBits for non-retarget block".to_string())
+                return Some("internal: missing parent nBits for non-retarget block".to_string());
             }
         };
         if header.bits != pb {
@@ -770,7 +770,9 @@ fn try_mem_available_recovery(
                 );
                 return Ok(true);
             }
-            eprintln!("KERNEL_DIFF_MEM_RECOVERY pass {pass} done: avail={av2}MiB still < {ok_line}MiB (floor={floor_mb})");
+            eprintln!(
+                "KERNEL_DIFF_MEM_RECOVERY pass {pass} done: avail={av2}MiB still < {ok_line}MiB (floor={floor_mb})"
+            );
         }
     }
     Ok(false)
@@ -935,46 +937,46 @@ fn main() -> Result<()> {
         // `raw_headers[0]` is at `headers_base` height; `seed_off` is relative to that base.
         // Cache path: headers_base = retarget_anchor (load_raw_headers_for_seed skips earlier headers).
         // Chunk walk: headers_base = lookback_start (full range prefetched for MTP/ring reuse).
-        let (raw_headers, from_chunk_walk, headers_base): (Vec<[u8; 80]>, bool, u64) =
-            if let Some(cached) = load_raw_headers_for_seed(&cp_dir, h) {
-                eprintln!(
-                    "   📋 {} block headers for Core seed from header cache — no seek needed",
-                    cached.len()
-                );
-                (cached, false, retarget_anchor)
-            } else {
-                eprintln!(
+        let (raw_headers, from_chunk_walk, headers_base): (Vec<[u8; 80]>, bool, u64) = if let Some(
+            cached,
+        ) =
+            load_raw_headers_for_seed(&cp_dir, h)
+        {
+            eprintln!(
+                "   📋 {} block headers for Core seed from header cache — no seek needed",
+                cached.len()
+            );
+            (cached, false, retarget_anchor)
+        } else {
+            eprintln!(
                 "   📋 collecting {} block headers (heights {}..={}) for seed + MTP + diff ring …",
                 lookback_count, lookback_start, h
             );
-                let mut hdr_iter = ChunkedBlockIterator::new(
-                    &chunks_dir,
-                    Some(lookback_start),
-                    Some(lookback_count),
-                )
-                .context("chunk cache iterator for header lookback")?
-                .context("chunk cache missing metadata for header lookback")?;
-                let mut hdrs: Vec<[u8; 80]> = Vec::with_capacity(lookback_count);
-                while let Some(raw) = hdr_iter.next_block()? {
-                    if raw.len() < 80 {
-                        anyhow::bail!(
-                            "raw block too short ({} bytes) for header extraction",
-                            raw.len()
-                        );
-                    }
-                    let mut hdr = [0u8; 80];
-                    hdr.copy_from_slice(&raw[..80]);
-                    hdrs.push(hdr);
+            let mut hdr_iter =
+                ChunkedBlockIterator::new(&chunks_dir, Some(lookback_start), Some(lookback_count))
+                    .context("chunk cache iterator for header lookback")?
+                    .context("chunk cache missing metadata for header lookback")?;
+            let mut hdrs: Vec<[u8; 80]> = Vec::with_capacity(lookback_count);
+            while let Some(raw) = hdr_iter.next_block()? {
+                if raw.len() < 80 {
+                    anyhow::bail!(
+                        "raw block too short ({} bytes) for header extraction",
+                        raw.len()
+                    );
                 }
-                anyhow::ensure!(
-                    hdr_iter.current_height() == h + 1,
-                    "header prefetch iterator ended at height {} (expected H+1={})",
-                    hdr_iter.current_height(),
-                    h + 1
-                );
-                resumed_chunk_iter = Some(hdr_iter);
-                (hdrs, true, lookback_start)
-            };
+                let mut hdr = [0u8; 80];
+                hdr.copy_from_slice(&raw[..80]);
+                hdrs.push(hdr);
+            }
+            anyhow::ensure!(
+                hdr_iter.current_height() == h + 1,
+                "header prefetch iterator ended at height {} (expected H+1={})",
+                hdr_iter.current_height(),
+                h + 1
+            );
+            resumed_chunk_iter = Some(hdr_iter);
+            (hdrs, true, lookback_start)
+        };
 
         // seed_off: how many headers to skip so that raw_headers[seed_off] is at retarget_anchor.
         // For the cache path headers_base == retarget_anchor → seed_off == 0 (seed all headers).
@@ -1022,45 +1024,45 @@ fn main() -> Result<()> {
         let lookback_start = retarget_anchor.min(mtp_oldest).min(ring_oldest);
         let lookback_count = (h - lookback_start + 1) as usize;
 
-        let (raw_headers, from_chunk_walk, headers_base): (Vec<[u8; 80]>, bool, u64) =
-            if let Some(cached) = load_raw_headers_for_seed(&cp_dir, h) {
-                eprintln!(
-                    "   📋 {} headers from cache for seed_headless_restore",
-                    cached.len()
-                );
-                (cached, false, retarget_anchor)
-            } else {
-                eprintln!(
+        let (raw_headers, from_chunk_walk, headers_base): (Vec<[u8; 80]>, bool, u64) = if let Some(
+            cached,
+        ) =
+            load_raw_headers_for_seed(&cp_dir, h)
+        {
+            eprintln!(
+                "   📋 {} headers from cache for seed_headless_restore",
+                cached.len()
+            );
+            (cached, false, retarget_anchor)
+        } else {
+            eprintln!(
                 "   📋 collecting {} headers ({lookback_start}..={h}) for restore + MTP + ring …",
                 lookback_count
             );
-                let mut hdr_iter = ChunkedBlockIterator::new(
-                    &chunks_dir,
-                    Some(lookback_start),
-                    Some(lookback_count),
-                )
-                .context("chunk cache iterator for restore header lookback")?
-                .context("chunk cache missing metadata for restore header lookback")?;
-                let mut hdrs: Vec<[u8; 80]> = Vec::with_capacity(lookback_count);
-                while let Some(raw) = hdr_iter.next_block()? {
-                    anyhow::ensure!(
-                        raw.len() >= 80,
-                        "raw block too short ({} bytes) for header extraction",
-                        raw.len()
-                    );
-                    let mut hdr = [0u8; 80];
-                    hdr.copy_from_slice(&raw[..80]);
-                    hdrs.push(hdr);
-                }
+            let mut hdr_iter =
+                ChunkedBlockIterator::new(&chunks_dir, Some(lookback_start), Some(lookback_count))
+                    .context("chunk cache iterator for restore header lookback")?
+                    .context("chunk cache missing metadata for restore header lookback")?;
+            let mut hdrs: Vec<[u8; 80]> = Vec::with_capacity(lookback_count);
+            while let Some(raw) = hdr_iter.next_block()? {
                 anyhow::ensure!(
-                    hdr_iter.current_height() == h + 1,
-                    "restore header prefetch ended at height {} (expected H+1={})",
-                    hdr_iter.current_height(),
-                    h + 1
+                    raw.len() >= 80,
+                    "raw block too short ({} bytes) for header extraction",
+                    raw.len()
                 );
-                resumed_chunk_iter = Some(hdr_iter);
-                (hdrs, true, lookback_start)
-            };
+                let mut hdr = [0u8; 80];
+                hdr.copy_from_slice(&raw[..80]);
+                hdrs.push(hdr);
+            }
+            anyhow::ensure!(
+                hdr_iter.current_height() == h + 1,
+                "restore header prefetch ended at height {} (expected H+1={})",
+                hdr_iter.current_height(),
+                h + 1
+            );
+            resumed_chunk_iter = Some(hdr_iter);
+            (hdrs, true, lookback_start)
+        };
 
         let seed_off = (retarget_anchor - headers_base) as usize;
         anyhow::ensure!(
@@ -1350,10 +1352,10 @@ fn main() -> Result<()> {
         let (mtp, ring) = mtp_and_ring_from_prefetched_raw(lb, &raw, args.start)
             .context("build MTP/diff ring from headless chunk prefetch")?;
         eprintln!(
-                "   📋 diff_ring ({} hdrs) + mtp_window ({} hdrs) from headless prefetch — no extra chunk seek",
-                ring.len(),
-                mtp.len()
-            );
+            "   📋 diff_ring ({} hdrs) + mtp_window ({} hdrs) from headless prefetch — no extra chunk seek",
+            ring.len(),
+            mtp.len()
+        );
         (mtp, ring)
     } else {
         (
@@ -1555,11 +1557,13 @@ fn main() -> Result<()> {
         mpsc::sync_channel::<anyhow::Result<Option<Vec<u8>>>>(chunk_readahead);
     let reader_thread = std::thread::Builder::new()
         .name("chunk-reader".into())
-        .spawn(move || loop {
-            let result = iter.next_block();
-            let done = matches!(&result, Ok(None));
-            if block_tx.send(result).is_err() || done {
-                break;
+        .spawn(move || {
+            loop {
+                let result = iter.next_block();
+                let done = matches!(&result, Ok(None));
+                if block_tx.send(result).is_err() || done {
+                    break;
+                }
             }
         })
         .context("spawn chunk reader thread")?;
@@ -1766,7 +1770,9 @@ fn main() -> Result<()> {
                 first_div_hash = Some(block_hash.clone());
             }
             // Always print divergences to stderr so they are visible even in silent mode.
-            eprintln!("KERNEL_DIFF_DIVERGENCE height={height} hash={block_hash} blvm={blvm_tag} core={core_tag}");
+            eprintln!(
+                "KERNEL_DIFF_DIVERGENCE height={height} hash={block_hash} blvm={blvm_tag} core={core_tag}"
+            );
             eprintln!("  BLVM detail: {blvm_detail}");
             eprintln!("  CORE detail: {core_detail}");
             if let Some(ref mut dlf) = divergence_log {
@@ -1910,7 +1916,11 @@ fn main() -> Result<()> {
                             let total_elapsed_ma = run_start.elapsed().as_secs_f64();
                             eprintln!(
                                 "KERNEL_DIFF_SUMMARY compared={compared} divergences={divergence_count} elapsed={total_elapsed_ma:.1}s avg_bps={:.1} stopped_mem_available=true",
-                                if total_elapsed_ma > 0.0 { compared as f64 / total_elapsed_ma } else { 0.0 }
+                                if total_elapsed_ma > 0.0 {
+                                    compared as f64 / total_elapsed_ma
+                                } else {
+                                    0.0
+                                }
                             );
                             eprintln!("KERNEL_DIFF_STATUS MEM_AVAILABLE");
                             // Flush buffered JSONL before exit so no records are lost.
@@ -1970,7 +1980,11 @@ fn main() -> Result<()> {
                         let total_elapsed_rss = run_start.elapsed().as_secs_f64();
                         eprintln!(
                             "KERNEL_DIFF_SUMMARY compared={compared} divergences={divergence_count} elapsed={total_elapsed_rss:.1}s avg_bps={:.1} stopped_rss_limit=true",
-                            if total_elapsed_rss > 0.0 { compared as f64 / total_elapsed_rss } else { 0.0 }
+                            if total_elapsed_rss > 0.0 {
+                                compared as f64 / total_elapsed_rss
+                            } else {
+                                0.0
+                            }
                         );
                         eprintln!("KERNEL_DIFF_STATUS RSS_LIMIT");
                         if let Some(ref mut f) = jsonl_log {
@@ -2022,7 +2036,11 @@ fn main() -> Result<()> {
     let total_elapsed = run_start.elapsed().as_secs_f64();
     eprintln!(
         "KERNEL_DIFF_SUMMARY compared={compared} divergences={divergence_count} elapsed={total_elapsed:.1}s avg_bps={:.1} first_divergence_height={first_div_height:?} first_divergence_hash={first_div_hash:?} stopped_early_max_divergences={stopped_after_max_divergences}",
-        if total_elapsed > 0.0 { compared as f64 / total_elapsed } else { 0.0 }
+        if total_elapsed > 0.0 {
+            compared as f64 / total_elapsed
+        } else {
+            0.0
+        }
     );
     if stopped_after_max_divergences {
         eprintln!("KERNEL_DIFF_STATUS STOPPED_MAX_DIVERGENCES");

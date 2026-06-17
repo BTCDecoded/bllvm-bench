@@ -2,13 +2,13 @@
 //! Usage: quick_check_failure <block> <tx_idx> <input_idx>
 
 use anyhow::{Context, Result};
+use blvm_protocol::Witness;
 use blvm_protocol::block::calculate_script_flags_for_block_network;
 use blvm_protocol::script::verify_script_with_context_full;
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
 use blvm_protocol::transaction::is_coinbase;
 use blvm_protocol::types::{Network, TransactionOutput};
 use blvm_protocol::witness::is_witness_empty;
-use blvm_protocol::Witness;
 
 use blvm_bench::chunked_cache::ChunkedBlockIterator;
 use blvm_bench::sort_merge::verify::PrevoutReader;
@@ -103,8 +103,10 @@ fn main() -> Result<()> {
     println!("Witness: {:?}", witness_stack.map(|w| w.len()));
 
     let prevout_values: Vec<i64> = all_prevouts.iter().map(|o| o.value).collect();
-    let prevout_script_pubkeys: Vec<&[u8]> =
-        all_prevouts.iter().map(|o| o.script_pubkey.as_slice()).collect();
+    let prevout_script_pubkeys: Vec<&[u8]> = all_prevouts
+        .iter()
+        .map(|o| o.script_pubkey.as_slice())
+        .collect();
 
     // Verify
     match verify_script_with_context_full(

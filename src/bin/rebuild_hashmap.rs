@@ -4,7 +4,7 @@
 //! causing blocks from other chunks to be fetched via RPC unnecessarily.
 
 use anyhow::{Context, Result};
-use blvm_bench::chunk_index::{build_block_index, save_hash_map, BlockHashMap};
+use blvm_bench::chunk_index::{BlockHashMap, build_block_index, save_hash_map};
 use std::collections::HashMap;
 use std::path::PathBuf;
 

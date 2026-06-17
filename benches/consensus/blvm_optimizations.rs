@@ -13,7 +13,7 @@ use blvm_protocol::{
     types::{BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput},
 };
 use blvm_protocol::{tx_inputs, tx_outputs};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 /// Helper to create a test transaction
 fn create_test_transaction() -> Transaction {

@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
-use rand::rngs::StdRng;
+use criterion::{BatchSize, Criterion, black_box, criterion_group, criterion_main};
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use std::time::{Duration, Instant};
 
 use blvm_node::network::dandelion::{Clock, DandelionRelay};

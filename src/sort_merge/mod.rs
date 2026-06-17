@@ -20,31 +20,11 @@
 //! Intermediate files total ~25GB on disk.
 
 pub mod input_refs;
-pub mod output_refs;
 pub mod merge_join;
+pub mod output_refs;
 pub mod verify;
 
 pub use input_refs::extract_input_refs;
-pub use output_refs::extract_outputs;
 pub use merge_join::merge_join;
+pub use output_refs::extract_outputs;
 pub use verify::verify_scripts;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

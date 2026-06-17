@@ -7,7 +7,7 @@
 //! matches the same artifacts you generated; Core still consumes **chainstate** (or a one-shot full
 //! fixed-v1 import) until the fork can apply these deltas.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use blvm_protocol::types::UtxoSet;
 use std::collections::BTreeMap;
 use std::fs::File;

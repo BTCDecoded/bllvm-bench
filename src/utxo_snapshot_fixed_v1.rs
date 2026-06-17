@@ -2,8 +2,8 @@
 //!
 //! Normative documentation: **`docs/UTXO_SNAPSHOT_FIXED_V1.md`**.
 
-use anyhow::{bail, Context, Result};
-use blvm_protocol::types::{utxo_set_with_capacity, OutPoint, UtxoSet, UTXO};
+use anyhow::{Context, Result, bail};
+use blvm_protocol::types::{OutPoint, UTXO, UtxoSet, utxo_set_with_capacity};
 use std::cmp::Ordering;
 use std::io::{Read, Write};
 use std::ops::Deref;

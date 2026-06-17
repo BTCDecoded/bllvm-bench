@@ -134,7 +134,7 @@ fn main() -> Result<()> {
             }
 
             let block_size = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
-            if block_size < 80 || block_size > 4_000_000 {
+            if !(80..=4_000_000).contains(&block_size) {
                 pos += 8;
                 continue;
             }
@@ -149,8 +149,8 @@ fn main() -> Result<()> {
             xor_decrypt(&mut block_header, block_offset);
 
             // Calculate block hash
-            let first_hash = Sha256::digest(&block_header);
-            let second_hash = Sha256::digest(&first_hash);
+            let first_hash = Sha256::digest(block_header);
+            let second_hash = Sha256::digest(first_hash);
             let mut block_hash = [0u8; 32];
             block_hash.copy_from_slice(&second_hash);
             block_hash.reverse(); // Big-endian
@@ -179,11 +179,10 @@ fn main() -> Result<()> {
 
             // Skip rest of block
             let remaining = block_size as i64 - 80;
-            if remaining > 0 {
-                if reader.seek(SeekFrom::Current(remaining)).is_err() {
+            if remaining > 0
+                && reader.seek(SeekFrom::Current(remaining)).is_err() {
                     break;
                 }
-            }
 
             pos += 8 + block_size as u64;
             total_blocks += 1;
@@ -216,7 +215,7 @@ fn main() -> Result<()> {
             height += 1;
 
             if height % 50000 == 0 {
-                println!("   Chained {} blocks...", height);
+                println!("   Chained {height} blocks...");
             }
         } else {
             // No more blocks
@@ -243,10 +242,9 @@ fn main() -> Result<()> {
     // Don't backup old chunks - just overwrite
 
     // Process blocks in chunks
-    let num_chunks = (chain.len() + BLOCKS_PER_CHUNK - 1) / BLOCKS_PER_CHUNK;
+    let num_chunks = chain.len().div_ceil(BLOCKS_PER_CHUNK);
     println!(
-        "   Will create {} chunks of {} blocks each",
-        num_chunks, BLOCKS_PER_CHUNK
+        "   Will create {num_chunks} chunks of {BLOCKS_PER_CHUNK} blocks each"
     );
 
     // Open file handles cache to avoid reopening
@@ -256,7 +254,7 @@ fn main() -> Result<()> {
         let start_height = chunk_idx * BLOCKS_PER_CHUNK;
         let end_height = ((chunk_idx + 1) * BLOCKS_PER_CHUNK).min(chain.len());
 
-        let chunk_path = chunks_dir.join(format!("chunk_{}.bin.zst", chunk_idx));
+        let chunk_path = chunks_dir.join(format!("chunk_{chunk_idx}.bin.zst"));
 
         // Skip if chunk already exists and is valid (at least 1MB)
         if chunk_path.exists() {
@@ -280,7 +278,7 @@ fn main() -> Result<()> {
         );
 
         // Create temp uncompressed file
-        let temp_path = chunks_dir.join(format!("chunk_{}.bin.tmp", chunk_idx));
+        let temp_path = chunks_dir.join(format!("chunk_{chunk_idx}.bin.tmp"));
 
         {
             let temp_file = std::fs::File::create(&temp_path)?;
@@ -321,7 +319,7 @@ fn main() -> Result<()> {
         println!();
 
         // Compress chunk (using -3 for optimal speed/compression balance)
-        println!("   🗜️  Compressing chunk {}...", chunk_idx);
+        println!("   🗜️  Compressing chunk {chunk_idx}...");
         let status = std::process::Command::new("zstd")
             .args(["-T0", "-3", "-f", "-o"])
             .arg(&chunk_path)
@@ -348,7 +346,9 @@ fn main() -> Result<()> {
     let meta_path = chunks_dir.join("chunks.meta");
     let meta_content = format!(
         "# Chunk metadata\n# Recollected from Bitcoin Core blk files (XOR decrypted)\ntotal_blocks={}\nnum_chunks={}\nblocks_per_chunk={}\ncompression=zstd\n",
-        chain.len(), num_chunks, BLOCKS_PER_CHUNK
+        chain.len(),
+        num_chunks,
+        BLOCKS_PER_CHUNK
     );
     std::fs::write(&meta_path, meta_content)?;
 

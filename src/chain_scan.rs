@@ -9,7 +9,8 @@
 //! Rule limits are configurable; defaults match BIP-110.
 
 use blvm_protocol::opcodes::{
-    OP_0, OP_ENDIF, OP_IF, OP_NOTIF, OP_PUSHDATA1, OP_PUSHDATA2, OP_PUSHDATA4, OP_RESERVED, OP_RETURN,
+    OP_0, OP_ENDIF, OP_IF, OP_NOTIF, OP_PUSHDATA1, OP_PUSHDATA2, OP_PUSHDATA4, OP_RESERVED,
+    OP_RETURN,
 };
 use blvm_protocol::segwit::Witness;
 use blvm_protocol::spam_filter::{SpamFilter, SpamFilterResult, SpamType};
@@ -36,9 +37,15 @@ fn spam_confidence(detected_types: &[SpamType]) -> SpamConfidence {
         .iter()
         .any(|t| matches!(t, SpamType::Ordinals | SpamType::BRC20));
     let has_large_witness = detected_types.iter().any(|t| *t == SpamType::LargeWitness);
-    let has_other = detected_types
-        .iter()
-        .any(|t| matches!(t, SpamType::Dust | SpamType::ManySmallOutputs | SpamType::HighSizeValueRatio | SpamType::LowFeeRate));
+    let has_other = detected_types.iter().any(|t| {
+        matches!(
+            t,
+            SpamType::Dust
+                | SpamType::ManySmallOutputs
+                | SpamType::HighSizeValueRatio
+                | SpamType::LowFeeRate
+        )
+    });
 
     if has_definite {
         SpamConfidence::Definite
@@ -55,8 +62,8 @@ use blvm_protocol::constants::{SEGWIT_ACTIVATION_MAINNET, TAPROOT_ACTIVATION_MAI
 use blvm_protocol::transaction::is_coinbase;
 use blvm_protocol::types::{Block, OutPoint, Transaction};
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // Default limits (BIP-110)
@@ -107,18 +114,28 @@ fn collateral_witness_bucket(len: usize) -> &'static str {
 }
 
 fn has_output_violation(violations: &[OutputSizeViolation]) -> bool {
-    violations
-        .iter()
-        .any(|v| matches!(v, OutputSizeViolation::OutputScriptOversized(_) | OutputSizeViolation::OpReturnOversized(_)))
+    violations.iter().any(|v| {
+        matches!(
+            v,
+            OutputSizeViolation::OutputScriptOversized(_)
+                | OutputSizeViolation::OpReturnOversized(_)
+        )
+    })
 }
 fn has_witness_violation(violations: &[OutputSizeViolation]) -> bool {
-    violations.iter().any(|v| matches!(v, OutputSizeViolation::WitnessElementOversized(_)))
+    violations
+        .iter()
+        .any(|v| matches!(v, OutputSizeViolation::WitnessElementOversized(_)))
 }
 fn has_control_violation(violations: &[OutputSizeViolation]) -> bool {
-    violations.iter().any(|v| matches!(v, OutputSizeViolation::ControlBlockOversized(_)))
+    violations
+        .iter()
+        .any(|v| matches!(v, OutputSizeViolation::ControlBlockOversized(_)))
 }
 fn has_annex_violation(violations: &[OutputSizeViolation]) -> bool {
-    violations.iter().any(|v| matches!(v, OutputSizeViolation::AnnexPresent))
+    violations
+        .iter()
+        .any(|v| matches!(v, OutputSizeViolation::AnnexPresent))
 }
 
 /// Compact size encoding length (1 byte for < 253)
@@ -144,7 +161,8 @@ fn tx_weight(tx: &Transaction, witnesses: &[Vec<Witness>], tx_idx: usize) -> u64
     }
     for output in &tx.outputs {
         base_size += 8; // value
-        base_size += compact_size_len(output.script_pubkey.len()) + output.script_pubkey.len() as u64;
+        base_size +=
+            compact_size_len(output.script_pubkey.len()) + output.script_pubkey.len() as u64;
     }
     base_size += 4; // locktime
     let witness_size: u64 = if tx_idx < witnesses.len() {
@@ -528,12 +546,9 @@ fn script_has_op_if_or_notif_as_opcode(script: &[u8]) -> bool {
             if i + 4 >= script.len() {
                 return false;
             }
-            let len = u32::from_le_bytes([
-                script[i + 1],
-                script[i + 2],
-                script[i + 3],
-                script[i + 4],
-            ]) as usize;
+            let len =
+                u32::from_le_bytes([script[i + 1], script[i + 2], script[i + 3], script[i + 4]])
+                    as usize;
             if i + 5 + len > script.len() {
                 return false;
             }
@@ -569,7 +584,11 @@ fn witness_has_tapscript_op_if(witness: &Witness) -> bool {
 
 /// Input indices that have Taproot script-path witness with OP_IF/OP_NOTIF in tapscript.
 /// Used for grandfathered vs unspendable lookup (prevout creation height).
-fn tapscript_op_if_input_indices(_tx: &Transaction, witnesses: &[Vec<Witness>], tx_idx: usize) -> Vec<usize> {
+fn tapscript_op_if_input_indices(
+    _tx: &Transaction,
+    witnesses: &[Vec<Witness>],
+    tx_idx: usize,
+) -> Vec<usize> {
     let mut indices = Vec::new();
     if let Some(wits) = witnesses.get(tx_idx) {
         for (input_idx, w) in wits.iter().enumerate() {
@@ -617,11 +636,7 @@ fn has_brc20_pattern(script: &[u8]) -> bool {
 }
 
 /// Classify transaction type
-fn classify_tx(
-    tx: &Transaction,
-    witnesses: &[Vec<Witness>],
-    tx_idx: usize,
-) -> TxClassification {
+fn classify_tx(tx: &Transaction, witnesses: &[Vec<Witness>], tx_idx: usize) -> TxClassification {
     let tx_witnesses = witnesses.get(tx_idx);
 
     let mut has_ordinal_pattern = false;
@@ -633,7 +648,9 @@ fn classify_tx(
         if output.script_pubkey.is_empty() {
             continue;
         }
-        if has_envelope_pattern(&output.script_pubkey) || (output.script_pubkey.len() > 200 && output.script_pubkey[0] != OP_RETURN) {
+        if has_envelope_pattern(&output.script_pubkey)
+            || (output.script_pubkey.len() > 200 && output.script_pubkey[0] != OP_RETURN)
+        {
             has_ordinal_pattern = true;
         }
         if has_brc20_pattern(&output.script_pubkey) {
@@ -683,11 +700,7 @@ fn classify_tx(
 }
 
 /// Analyze a single transaction for output/witness size rule violations
-pub fn analyze_tx(
-    tx: &Transaction,
-    witnesses: &[Vec<Witness>],
-    tx_idx: usize,
-) -> TxScanResult {
+pub fn analyze_tx(tx: &Transaction, witnesses: &[Vec<Witness>], tx_idx: usize) -> TxScanResult {
     let mut violations = Vec::new();
     let mut max_witness_element = 0usize;
     let mut total_witness_size = 0usize;
@@ -773,11 +786,10 @@ pub fn analyze_block(
         .map(|(tx_idx, tx)| {
             let result = analyze_tx(tx, witnesses, tx_idx);
             let w = tx_weight(tx, witnesses, tx_idx);
-            let spam_result = spam_filter
-                .map(|f| {
-                    let tx_wits = witnesses.get(tx_idx).map(|w| w.as_slice());
-                    f.is_spam_with_witness(tx, tx_wits, None)
-                });
+            let spam_result = spam_filter.map(|f| {
+                let tx_wits = witnesses.get(tx_idx).map(|w| w.as_slice());
+                f.is_spam_with_witness(tx, tx_wits, None)
+            });
             (result, w, spam_result)
         })
         .collect();
@@ -1114,10 +1126,16 @@ pub fn merge_block_into_results(results: &mut ChainScanResults, block: &BlockSca
     results.blocked_weight_with_control_violation += block.blocked_weight_with_control_violation;
 
     for (k, v) in &block.witness_element_histogram {
-        *results.witness_element_histogram.entry(k.clone()).or_insert(0) += *v as u64;
+        *results
+            .witness_element_histogram
+            .entry(k.clone())
+            .or_insert(0) += *v as u64;
     }
     for (k, v) in &block.collateral_violations_by_type {
-        *results.collateral_violations_by_type.entry(k.clone()).or_insert(0) += *v as u64;
+        *results
+            .collateral_violations_by_type
+            .entry(k.clone())
+            .or_insert(0) += *v as u64;
     }
     for (k, v) in &block.collateral_witness_element_histogram {
         *results
@@ -1196,21 +1214,38 @@ pub fn merge_block_into_results(results: &mut ChainScanResults, block: &BlockSca
 
     // Spam by type by era
     for (k, v) in &block.spam_by_type_by_era.pre_segwit {
-        *results.spam_by_type_by_era.pre_segwit.entry(k.clone()).or_insert(0) += *v;
+        *results
+            .spam_by_type_by_era
+            .pre_segwit
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
     for (k, v) in &block.spam_by_type_by_era.segwit {
-        *results.spam_by_type_by_era.segwit.entry(k.clone()).or_insert(0) += *v;
+        *results
+            .spam_by_type_by_era
+            .segwit
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
     for (k, v) in &block.spam_by_type_by_era.taproot {
-        *results.spam_by_type_by_era.taproot.entry(k.clone()).or_insert(0) += *v;
+        *results
+            .spam_by_type_by_era
+            .taproot
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
     for (k, v) in &block.spam_by_type_by_era.inscriptions {
-        *results.spam_by_type_by_era.inscriptions.entry(k.clone()).or_insert(0) += *v;
+        *results
+            .spam_by_type_by_era
+            .inscriptions
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
 
     results.largwitness_and_witness_blocked += block.largwitness_and_witness_blocked as u64;
     results.blocked_txs_with_taproot_output += block.blocked_txs_with_taproot_output as u64;
-    results.block_txs_with_tapscript_op_if_violation += block.block_txs_with_tapscript_op_if_violation as u64;
+    results.block_txs_with_tapscript_op_if_violation +=
+        block.block_txs_with_tapscript_op_if_violation as u64;
     results.tapscript_op_if_grandfathered += block.tapscript_op_if_grandfathered as u64;
     results.tapscript_op_if_unspendable += block.tapscript_op_if_unspendable as u64;
     for (k, v) in &block.collateral_by_classification {
@@ -1300,7 +1335,9 @@ pub fn merge_results_into(acc: &mut ChainScanResults, other: &ChainScanResults) 
         *acc.witness_element_histogram.entry(k.clone()).or_insert(0) += *v;
     }
     for (k, v) in &other.collateral_violations_by_type {
-        *acc.collateral_violations_by_type.entry(k.clone()).or_insert(0) += *v;
+        *acc.collateral_violations_by_type
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
     for (k, v) in &other.collateral_witness_element_histogram {
         *acc.collateral_witness_element_histogram
@@ -1309,14 +1346,20 @@ pub fn merge_results_into(acc: &mut ChainScanResults, other: &ChainScanResults) 
     }
 
     // Collateral by era
-    acc.collateral_by_era.pre_segwit.collateral_txs += other.collateral_by_era.pre_segwit.collateral_txs;
-    acc.collateral_by_era.pre_segwit.collateral_weight += other.collateral_by_era.pre_segwit.collateral_weight;
+    acc.collateral_by_era.pre_segwit.collateral_txs +=
+        other.collateral_by_era.pre_segwit.collateral_txs;
+    acc.collateral_by_era.pre_segwit.collateral_weight +=
+        other.collateral_by_era.pre_segwit.collateral_weight;
     acc.collateral_by_era.segwit.collateral_txs += other.collateral_by_era.segwit.collateral_txs;
-    acc.collateral_by_era.segwit.collateral_weight += other.collateral_by_era.segwit.collateral_weight;
+    acc.collateral_by_era.segwit.collateral_weight +=
+        other.collateral_by_era.segwit.collateral_weight;
     acc.collateral_by_era.taproot.collateral_txs += other.collateral_by_era.taproot.collateral_txs;
-    acc.collateral_by_era.taproot.collateral_weight += other.collateral_by_era.taproot.collateral_weight;
-    acc.collateral_by_era.inscriptions.collateral_txs += other.collateral_by_era.inscriptions.collateral_txs;
-    acc.collateral_by_era.inscriptions.collateral_weight += other.collateral_by_era.inscriptions.collateral_weight;
+    acc.collateral_by_era.taproot.collateral_weight +=
+        other.collateral_by_era.taproot.collateral_weight;
+    acc.collateral_by_era.inscriptions.collateral_txs +=
+        other.collateral_by_era.inscriptions.collateral_txs;
+    acc.collateral_by_era.inscriptions.collateral_weight +=
+        other.collateral_by_era.inscriptions.collateral_weight;
 
     // Blocked weight by retarget
     for (start, other_stats) in &other.blocked_weight_by_retarget {
@@ -1345,21 +1388,32 @@ pub fn merge_results_into(acc: &mut ChainScanResults, other: &ChainScanResults) 
     acc.largwitness_spam_by_era.inscriptions += other.largwitness_spam_by_era.inscriptions;
 
     for (k, v) in &other.spam_by_type_by_era.pre_segwit {
-        *acc.spam_by_type_by_era.pre_segwit.entry(k.clone()).or_insert(0) += *v;
+        *acc.spam_by_type_by_era
+            .pre_segwit
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
     for (k, v) in &other.spam_by_type_by_era.segwit {
         *acc.spam_by_type_by_era.segwit.entry(k.clone()).or_insert(0) += *v;
     }
     for (k, v) in &other.spam_by_type_by_era.taproot {
-        *acc.spam_by_type_by_era.taproot.entry(k.clone()).or_insert(0) += *v;
+        *acc.spam_by_type_by_era
+            .taproot
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
     for (k, v) in &other.spam_by_type_by_era.inscriptions {
-        *acc.spam_by_type_by_era.inscriptions.entry(k.clone()).or_insert(0) += *v;
+        *acc.spam_by_type_by_era
+            .inscriptions
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
 
     acc.largwitness_and_witness_blocked += other.largwitness_and_witness_blocked;
     acc.blocked_txs_with_taproot_output += other.blocked_txs_with_taproot_output;
     for (k, v) in &other.collateral_by_classification {
-        *acc.collateral_by_classification.entry(k.clone()).or_insert(0) += *v;
+        *acc.collateral_by_classification
+            .entry(k.clone())
+            .or_insert(0) += *v;
     }
 }

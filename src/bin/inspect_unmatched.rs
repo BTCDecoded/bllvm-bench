@@ -8,7 +8,9 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 
 fn main() -> Result<()> {
-    let chunks_dir = blvm_bench::require_block_cache_dir()?.to_string_lossy().into_owned();
+    let chunks_dir = blvm_bench::require_block_cache_dir()?
+        .to_string_lossy()
+        .into_owned();
     let chunks_dir = std::path::PathBuf::from(chunks_dir);
 
     let data_dir = chunks_dir.join("sort_merge_data");

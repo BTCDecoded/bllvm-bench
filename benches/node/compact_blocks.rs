@@ -1,8 +1,8 @@
 mod compact_block_support;
 
-use blvm_protocol::{tx_inputs, tx_outputs, Block, BlockHeader, Transaction, TransactionOutput};
+use blvm_protocol::{Block, BlockHeader, Transaction, TransactionOutput, tx_inputs, tx_outputs};
 use compact_block_support::{calculate_short_tx_id, calculate_tx_hash, create_compact_block};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::collections::HashSet;
 
 fn create_test_block() -> Block {

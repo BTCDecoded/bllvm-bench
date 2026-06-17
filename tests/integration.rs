@@ -6,8 +6,8 @@ mod helpers {
 
     use blvm_protocol::types::Network;
     use blvm_protocol::{
-        tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
-        TransactionOutput,
+        Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, tx_inputs,
+        tx_outputs,
     };
 
     /// Create a test block with coinbase transaction
@@ -28,7 +28,7 @@ mod helpers {
                 sequence: 0xffffffff,
             }],
             outputs: tx_outputs![TransactionOutput {
-                value: 50_000_000_000,     // 50 BTC
+                value: 50_000_000_000, // 50 BTC
                 script_pubkey: vec![blvm_protocol::opcodes::OP_1],
             }],
             lock_time: 0,
@@ -105,12 +105,11 @@ mod helpers {
         height: u64,
         network: Network,
     ) -> blvm_protocol::types::ValidationResult {
+        use blvm_protocol::UtxoSet;
         use blvm_protocol::block::connect_block;
         use blvm_protocol::segwit::Witness;
-        use blvm_protocol::UtxoSet;
 
-        let witnesses: Vec<Vec<Witness>> =
-            block.transactions.iter().map(|_| Vec::new()).collect();
+        let witnesses: Vec<Vec<Witness>> = block.transactions.iter().map(|_| Vec::new()).collect();
         let utxo_set = UtxoSet::default();
         let ctx = blvm_protocol::block::block_validation_context_for_connect_ibd(
             None::<&[blvm_protocol::types::BlockHeader]>,
@@ -653,10 +652,10 @@ async fn test_valid_block_accepted() -> Result<()> {
 #[cfg(feature = "differential")]
 async fn test_historical_blocks_differential() -> Result<()> {
     use blvm_bench::differential::{CoreValidationResult, ValidationResult};
+    use blvm_protocol::UtxoSet;
     use blvm_protocol::block::connect_block;
     use blvm_protocol::segwit::Witness;
     use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
-    use blvm_protocol::UtxoSet;
     use std::sync::Arc;
 
     // Check if we should use parallel differential with chunks (when RPC unavailable or BLOCK_CACHE_DIR is set)
@@ -678,7 +677,9 @@ async fn test_historical_blocks_differential() -> Result<()> {
         Ok((client, net)) => (client, net),
         Err(e) => {
             eprintln!("⚠️  Failed to connect to Bitcoin Core node: {}", e);
-            eprintln!("💡 Tip: Set BITCOIN_RPC_HOST to connect to a remote node, or set BLOCK_CACHE_DIR to use chunks");
+            eprintln!(
+                "💡 Tip: Set BITCOIN_RPC_HOST to connect to a remote node, or set BLOCK_CACHE_DIR to use chunks"
+            );
             // Fallback to parallel differential with chunks
             return test_historical_blocks_parallel_fallback().await;
         }
@@ -851,12 +852,7 @@ async fn test_historical_blocks_differential() -> Result<()> {
         );
 
         if !matches {
-            divergences.push((
-                height,
-                block_hash,
-                blvm_result.clone(),
-                core_result.clone(),
-            ));
+            divergences.push((height, block_hash, blvm_result.clone(), core_result.clone()));
             eprintln!(
                 "❌ DIVERGENCE at height {}: BLLVM={:?}, Core={:?}",
                 height, blvm_result, core_result
@@ -939,7 +935,7 @@ async fn test_historical_blocks_differential() -> Result<()> {
 /// Fallback to parallel differential testing with chunks when RPC is unavailable
 #[cfg(feature = "differential")]
 async fn test_historical_blocks_parallel_fallback() -> Result<()> {
-    use blvm_bench::parallel_differential::{run_parallel_differential, ParallelConfig};
+    use blvm_bench::parallel_differential::{ParallelConfig, run_parallel_differential};
     use std::sync::Arc;
 
     let use_resumable = std::env::var("RESUMABLE")
@@ -948,7 +944,9 @@ async fn test_historical_blocks_parallel_fallback() -> Result<()> {
         .unwrap_or(false);
 
     if use_resumable {
-        println!("🔄 RESUMABLE=1 set but resumable differential is not implemented; using parallel differential");
+        println!(
+            "🔄 RESUMABLE=1 set but resumable differential is not implemented; using parallel differential"
+        );
     }
     println!("🔄 Using parallel differential testing with chunks");
 
@@ -1041,8 +1039,7 @@ async fn test_historical_blocks_parallel_fallback() -> Result<()> {
             .unwrap_or(false),
     };
 
-    let results =
-        run_parallel_differential(start_height, end_height, config, block_source).await?;
+    let results = run_parallel_differential(start_height, end_height, config, block_source).await?;
 
     // Check for divergences
     let total_tested: usize = results.iter().map(|r| r.tested).sum();

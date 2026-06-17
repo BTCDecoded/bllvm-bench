@@ -9,7 +9,7 @@
 //! prep_chunk_utxo_cache --rebuild-index   # slow: rescan chunk_*.bin.zst
 //! ```
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use blvm_bench::chunk_index::{
     contiguous_chain_from, ensure_chunk_block_index, missing_chunk_bin_files,
     validate_utxo_chunk_cache_index,

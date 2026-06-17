@@ -9,7 +9,7 @@ use blvm_protocol::block::{
     calculate_base_script_flags_for_block_network, tx_has_nonempty_input_witness,
     tx_requires_witness_script_flags,
 };
-use blvm_protocol::script::{verify_script_with_context_full, SigVersion};
+use blvm_protocol::script::{SigVersion, verify_script_with_context_full};
 use blvm_protocol::segwit::Witness;
 use blvm_protocol::serialization::block::{
     deserialize_block_header, deserialize_block_with_witnesses,

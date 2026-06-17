@@ -165,7 +165,7 @@ unsafe extern "C" {
     ) -> c_int;
 
     fn btck_chainstate_manager_get_active_chain(chainstate_manager: *const c_void)
-        -> *const c_void;
+    -> *const c_void;
     fn btck_chain_get_height(chain: *const c_void) -> c_int;
 
     fn btck_block_create(raw_block: *const c_void, raw_block_len: size_t) -> *mut c_void;

@@ -5,18 +5,18 @@ use blvm_protocol::utxo_commitments::verification::{verify_header_chain, verify_
 #[cfg(feature = "utxo-commitments")]
 use blvm_protocol::{BlockHeader, Natural};
 #[cfg(feature = "utxo-commitments")]
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 #[cfg(not(feature = "utxo-commitments"))]
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 #[cfg(feature = "utxo-commitments")]
 fn create_test_commitment(height: Natural) -> UtxoCommitment {
     UtxoCommitment::new(
-        [0u8; 32],  // merkle_root
-        50_0000_0000 * height as u64,  // total_supply (simplified)
-        1,           // utxo_count
+        [0u8; 32],                    // merkle_root
+        50_0000_0000 * height as u64, // total_supply (simplified)
+        1,                            // utxo_count
         height,
-        [0u8; 32],   // block_hash
+        [0u8; 32], // block_hash
     )
 }
 

@@ -3,12 +3,12 @@
 //! Usage: investigate_failure <block_height> <tx_idx> <input_idx>
 
 use anyhow::{Context, Result};
+use blvm_protocol::Witness;
 use blvm_protocol::block::calculate_script_flags_for_block_network;
-use blvm_protocol::script::{verify_script_with_context_full, SigVersion};
+use blvm_protocol::script::{SigVersion, verify_script_with_context_full};
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
 use blvm_protocol::transaction::is_coinbase;
 use blvm_protocol::types::{Network, TransactionOutput};
-use blvm_protocol::Witness;
 
 use blvm_bench::chunked_cache::ChunkedBlockIterator;
 use blvm_bench::sort_merge::verify::PrevoutReader;
@@ -89,7 +89,8 @@ fn main() -> Result<()> {
     );
 
     // Load prevouts for this block using PrevoutReader (efficient skip)
-    let prevouts_file = blvm_bench::block_cache_env::sort_merge_data_dir()?.join("joined_sorted.bin");
+    let prevouts_file =
+        blvm_bench::block_cache_env::sort_merge_data_dir()?.join("joined_sorted.bin");
     let mut prevout_reader = PrevoutReader::new(&prevouts_file)?;
 
     // Skip to the block
@@ -133,7 +134,8 @@ fn main() -> Result<()> {
 
     let wits = witnesses.get(tx_idx).map(|w| w.as_slice()).unwrap_or(&[]);
     let has_witness = wits.iter().any(|wit| !is_witness_empty(wit));
-    let flags = calculate_script_flags_for_block_network(tx, has_witness, block_height, Network::Mainnet);
+    let flags =
+        calculate_script_flags_for_block_network(tx, has_witness, block_height, Network::Mainnet);
     println!("\n🏳️  Script flags: 0x{:x}", flags);
     println!("  P2SH: {}", (flags & 0x01) != 0);
     println!("  DERSIG: {}", (flags & 0x04) != 0);
@@ -141,7 +143,10 @@ fn main() -> Result<()> {
     println!("  CHECKSEQUENCEVERIFY: {}", (flags & 0x400) != 0);
     println!("  WITNESS: {}", (flags & 0x800) != 0);
     println!("  NULLDUMMY: {}", (flags & 0x10) != 0);
-    println!("  WITNESS_PUBKEYTYPE (Taproot outputs): {}", (flags & 0x8000) != 0);
+    println!(
+        "  WITNESS_PUBKEYTYPE (Taproot outputs): {}",
+        (flags & 0x8000) != 0
+    );
 
     // Build all prevouts for this transaction from block_prevouts
     println!("\n🔍 Building prevouts for transaction...");
@@ -168,8 +173,10 @@ fn main() -> Result<()> {
     // Verify script
     println!("\n🔐 Verifying script...");
     let prevout_values: Vec<i64> = all_prevouts.iter().map(|o| o.value).collect();
-    let prevout_script_pubkeys: Vec<&[u8]> =
-        all_prevouts.iter().map(|o| o.script_pubkey.as_slice()).collect();
+    let prevout_script_pubkeys: Vec<&[u8]> = all_prevouts
+        .iter()
+        .map(|o| o.script_pubkey.as_slice())
+        .collect();
 
     match verify_script_with_context_full(
         &input.script_sig,

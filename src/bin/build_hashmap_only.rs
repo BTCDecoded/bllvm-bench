@@ -202,7 +202,7 @@ fn main() -> Result<()> {
     }
 
     // Save hash map
-    use blvm_bench::chunk_index::{save_hash_map, BlockHashMap};
+    use blvm_bench::chunk_index::{BlockHashMap, save_hash_map};
     let hash_map: BlockHashMap = total_blocks;
 
     // Backup existing

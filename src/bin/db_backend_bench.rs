@@ -6,7 +6,7 @@
 //! ```
 
 use anyhow::{Context, Result};
-use blvm_node::storage::utxo_value_codec::{decode_utxo_with_codec, ValueCodec};
+use blvm_node::storage::utxo_value_codec::{ValueCodec, decode_utxo_with_codec};
 use clap::Parser;
 use std::time::Instant;
 
@@ -14,8 +14,8 @@ use std::time::Instant;
 mod database_backends_support;
 
 use database_backends_support::{
-    batch_write_utxos, key_refs, open_empty_redb_tree, open_redb_utxo_tree, prepare_utxo_batch,
-    WRITE_BENCH_CHUNK,
+    WRITE_BENCH_CHUNK, batch_write_utxos, key_refs, open_empty_redb_tree, open_redb_utxo_tree,
+    prepare_utxo_batch,
 };
 
 #[cfg(feature = "node-benches-heed3")]

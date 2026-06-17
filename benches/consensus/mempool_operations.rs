@@ -1,10 +1,8 @@
-use blvm_protocol::mempool::{
-    accept_to_memory_pool, is_standard_tx, replacement_checks, Mempool,
-};
+use blvm_protocol::mempool::{Mempool, accept_to_memory_pool, is_standard_tx, replacement_checks};
 use blvm_protocol::{
-    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput, UtxoSet,
+    OutPoint, Transaction, TransactionInput, TransactionOutput, UtxoSet, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -249,9 +247,7 @@ fn benchmark_is_standard_tx_400tx(c: &mut Criterion) {
                 // Check if standard (part of MempoolCheck)
                 let _ = black_box(is_standard_tx(black_box(tx)));
                 // Check transaction structure (part of MempoolCheck)
-                let _ = black_box(blvm_protocol::transaction::check_transaction(black_box(
-                    tx,
-                )));
+                let _ = black_box(blvm_protocol::transaction::check_transaction(black_box(tx)));
                 // Check inputs against UTXO set (part of MempoolCheck)
                 let _ = black_box(blvm_protocol::transaction::check_tx_inputs(
                     black_box(tx),
@@ -319,9 +315,7 @@ fn benchmark_replacement_checks_mempool(c: &mut Criterion) {
             // This includes: structure check, input validation, script verification, RBF checks
             for tx in &mempool_txs {
                 // Check transaction structure (part of MempoolCheck)
-                let _ = black_box(blvm_protocol::transaction::check_transaction(black_box(
-                    tx,
-                )));
+                let _ = black_box(blvm_protocol::transaction::check_transaction(black_box(tx)));
                 // Check inputs against UTXO set (part of MempoolCheck)
                 let _ = black_box(blvm_protocol::transaction::check_tx_inputs(
                     black_box(tx),

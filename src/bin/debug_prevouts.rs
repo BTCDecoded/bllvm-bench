@@ -22,7 +22,8 @@ fn main() -> Result<()> {
 
     let chunks_dir = blvm_bench::require_block_cache_dir()?;
 
-    let prevouts_file = blvm_bench::block_cache_env::sort_merge_data_dir()?.join("joined_sorted.bin");
+    let prevouts_file =
+        blvm_bench::block_cache_env::sort_merge_data_dir()?.join("joined_sorted.bin");
 
     println!("🔍 Debugging prevouts for:");
     println!("  Block: {}", block_height);

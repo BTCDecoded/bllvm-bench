@@ -1,6 +1,6 @@
 #[cfg(feature = "production")]
 use blvm_protocol::{tx_inputs, tx_outputs};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use sha2::{Digest, Sha256};
 
 fn benchmark_sha256(c: &mut Criterion) {
@@ -219,8 +219,23 @@ fn benchmark_merkle_root_batching(c: &mut Criterion) {
                         blvm_protocol::opcodes::OP_DUP,
                         blvm_protocol::opcodes::OP_HASH160,
                         blvm_protocol::opcodes::PUSH_20_BYTES,
-                        0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a,
-                        0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+                        0x89,
+                        0xab,
+                        0xcd,
+                        0xef,
+                        0x12,
+                        0x34,
+                        0x56,
+                        0x78,
+                        0x9a,
+                        0xbc,
+                        0xde,
+                        0xf0,
+                        0x12,
+                        0x34,
+                        0x56,
+                        0x78,
+                        0x9a,
                         blvm_protocol::opcodes::OP_EQUALVERIFY,
                         blvm_protocol::opcodes::OP_CHECKSIG,
                     ],
@@ -261,8 +276,23 @@ fn benchmark_block_validation_tx_ids(c: &mut Criterion) {
                         blvm_protocol::opcodes::OP_DUP,
                         blvm_protocol::opcodes::OP_HASH160,
                         blvm_protocol::opcodes::PUSH_20_BYTES,
-                        0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a,
-                        0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+                        0x89,
+                        0xab,
+                        0xcd,
+                        0xef,
+                        0x12,
+                        0x34,
+                        0x56,
+                        0x78,
+                        0x9a,
+                        0xbc,
+                        0xde,
+                        0xf0,
+                        0x12,
+                        0x34,
+                        0x56,
+                        0x78,
+                        0x9a,
                         blvm_protocol::opcodes::OP_EQUALVERIFY,
                         blvm_protocol::opcodes::OP_CHECKSIG,
                     ],
@@ -286,7 +316,7 @@ fn benchmark_block_validation_tx_ids(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_sighash_batching(c: &mut Criterion) {
-    use blvm_protocol::transaction_hash::{batch_compute_sighashes, SighashType};
+    use blvm_protocol::transaction_hash::{SighashType, batch_compute_sighashes};
     use blvm_protocol::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     let input_counts = vec![2, 5, 10, 20];
@@ -310,8 +340,23 @@ fn benchmark_sighash_batching(c: &mut Criterion) {
                     blvm_protocol::opcodes::OP_DUP,
                     blvm_protocol::opcodes::OP_HASH160,
                     blvm_protocol::opcodes::PUSH_20_BYTES,
-                    0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
-                    0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+                    0x89,
+                    0xab,
+                    0xcd,
+                    0xef,
+                    0x12,
+                    0x34,
+                    0x56,
+                    0x78,
+                    0x9a,
+                    0xbc,
+                    0xde,
+                    0xf0,
+                    0x12,
+                    0x34,
+                    0x56,
+                    0x78,
+                    0x9a,
                     blvm_protocol::opcodes::OP_EQUALVERIFY,
                     blvm_protocol::opcodes::OP_CHECKSIG,
                 ],
@@ -326,8 +371,23 @@ fn benchmark_sighash_batching(c: &mut Criterion) {
                     blvm_protocol::opcodes::OP_DUP,
                     blvm_protocol::opcodes::OP_HASH160,
                     blvm_protocol::opcodes::PUSH_20_BYTES,
-                    0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
-                    0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+                    0x89,
+                    0xab,
+                    0xcd,
+                    0xef,
+                    0x12,
+                    0x34,
+                    0x56,
+                    0x78,
+                    0x9a,
+                    0xbc,
+                    0xde,
+                    0xf0,
+                    0x12,
+                    0x34,
+                    0x56,
+                    0x78,
+                    0x9a,
                     blvm_protocol::opcodes::OP_EQUALVERIFY,
                     blvm_protocol::opcodes::OP_CHECKSIG,
                 ],
@@ -347,8 +407,8 @@ fn benchmark_sighash_batching(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_pow_batching(c: &mut Criterion) {
-    use blvm_protocol::pow::batch_check_proof_of_work;
     use blvm_protocol::BlockHeader;
+    use blvm_protocol::pow::batch_check_proof_of_work;
 
     let header_counts = vec![8, 16, 32, 64, 128];
 
@@ -378,7 +438,7 @@ fn benchmark_pow_batching(c: &mut Criterion) {
 fn benchmark_batch_ecdsa_verification(c: &mut Criterion) {
     use blvm_protocol::script::batch_verify_signatures;
     use blvm_protocol::types::Network;
-    use secp256k1::{ecdsa::Signature, Message, Secp256k1};
+    use secp256k1::{Message, Secp256k1, ecdsa::Signature};
 
     // Create test verification tasks with fixed test data
     // Using dummy but valid-format data for benchmarking (verification will fail but format is valid)
@@ -461,7 +521,7 @@ fn benchmark_batch_ecdsa_verification(c: &mut Criterion) {
 
 #[cfg(feature = "production")]
 fn benchmark_sighash_templates(c: &mut Criterion) {
-    use blvm_protocol::transaction_hash::{calculate_transaction_sighash, SighashType};
+    use blvm_protocol::transaction_hash::{SighashType, calculate_transaction_sighash};
     use blvm_protocol::{OutPoint, Transaction, TransactionInput, TransactionOutput};
 
     // Create standard transaction (1 input, 1 output) - most common pattern
@@ -470,7 +530,7 @@ fn benchmark_sighash_templates(c: &mut Criterion) {
         inputs: tx_inputs![TransactionInput {
             prevout: OutPoint {
                 hash: [0u8; 32],
-                        index: 0u32,
+                index: 0u32,
             },
             script_sig: vec![0x51],
             sequence: 0xffffffffu64,
@@ -481,8 +541,23 @@ fn benchmark_sighash_templates(c: &mut Criterion) {
                 blvm_protocol::opcodes::OP_DUP,
                 blvm_protocol::opcodes::OP_HASH160,
                 blvm_protocol::opcodes::PUSH_20_BYTES,
-                0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
-                0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+                0x89,
+                0xab,
+                0xcd,
+                0xef,
+                0x12,
+                0x34,
+                0x56,
+                0x78,
+                0x9a,
+                0xbc,
+                0xde,
+                0xf0,
+                0x12,
+                0x34,
+                0x56,
+                0x78,
+                0x9a,
                 blvm_protocol::opcodes::OP_EQUALVERIFY,
                 blvm_protocol::opcodes::OP_CHECKSIG,
             ],
@@ -496,8 +571,23 @@ fn benchmark_sighash_templates(c: &mut Criterion) {
             blvm_protocol::opcodes::OP_DUP,
             blvm_protocol::opcodes::OP_HASH160,
             blvm_protocol::opcodes::PUSH_20_BYTES,
-            0x89, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
-            0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+            0x89,
+            0xab,
+            0xcd,
+            0xef,
+            0x12,
+            0x34,
+            0x56,
+            0x78,
+            0x9a,
+            0xbc,
+            0xde,
+            0xf0,
+            0x12,
+            0x34,
+            0x56,
+            0x78,
+            0x9a,
             blvm_protocol::opcodes::OP_EQUALVERIFY,
             blvm_protocol::opcodes::OP_CHECKSIG,
         ],
@@ -544,7 +634,7 @@ fn benchmark_early_exit_transaction(c: &mut Criterion) {
         inputs: tx_inputs![TransactionInput {
             prevout: OutPoint {
                 hash: [0u8; 32],
-                        index: 0u32,
+                index: 0u32,
             },
             script_sig: vec![0x51],
             sequence: 0xffffffffu64,

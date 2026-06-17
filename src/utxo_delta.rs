@@ -34,8 +34,8 @@
 //! only reachable before height 91842 (two known duplicate-txid pairs), well before any
 //! interval starting at ≥ 100 000.
 
-use anyhow::{bail, Context, Result};
-use blvm_protocol::types::{OutPoint, UtxoSet, UTXO};
+use anyhow::{Context, Result, bail};
+use blvm_protocol::types::{OutPoint, UTXO, UtxoSet};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};

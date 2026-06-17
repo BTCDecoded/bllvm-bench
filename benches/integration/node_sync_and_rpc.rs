@@ -7,7 +7,7 @@
 //! 4. Measures performance
 
 use blvm_protocol::{tx_inputs, tx_outputs};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -126,8 +126,8 @@ async fn generate_blocks_via_storage(
     _protocol: &blvm_protocol::BitcoinProtocolEngine,
     target: u64,
 ) -> anyhow::Result<()> {
-    use blvm_protocol::types::BlockHeader;
     use blvm_protocol::Block;
+    use blvm_protocol::types::BlockHeader;
     // Get current height
     let current_height = storage.chain().get_height()?.unwrap_or(0);
     for height in current_height..(current_height + target) {
@@ -149,8 +149,24 @@ async fn generate_blocks_via_storage(
                     blvm_protocol::opcodes::OP_DUP,
                     blvm_protocol::opcodes::OP_HASH160,
                     blvm_protocol::opcodes::PUSH_20_BYTES,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
                     blvm_protocol::opcodes::OP_EQUALVERIFY,
                     blvm_protocol::opcodes::OP_CHECKSIG,
                 ],
@@ -245,7 +261,7 @@ fn benchmark_node_sync_and_rpc(c: &mut Criterion) {
                 let temp_dir = TempDir::new().unwrap();
                 let data_dir = temp_dir.path().to_path_buf();
                 let rpc_port = 18443; // Standard regtest RPC port
-                                      // Setup node
+                // Setup node
                 let (node, rpc_client) = setup_node(data_dir.clone(), rpc_port)
                     .await
                     .expect("Failed to setup node");

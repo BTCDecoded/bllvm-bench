@@ -1,6 +1,6 @@
 use blvm_protocol::block::connect_block_ibd;
 use blvm_protocol::segwit::Witness;
-use blvm_protocol::types::{Block, Network, UtxoSet, UTXO};
+use blvm_protocol::types::{Block, Network, UTXO, UtxoSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;

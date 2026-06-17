@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use blvm_bench::remote_core_rpc::RemoteCoreRpcClient;
 use std::io::{BufWriter, Write};
 use std::process::Command;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 const BLOCKS_PER_CHUNK: u64 = 125_000;
 const SAVE_INTERVAL: u64 = 1000; // Save progress every 1000 blocks
@@ -15,14 +15,14 @@ const SAVE_INTERVAL: u64 = 1000; // Save progress every 1000 blocks
 #[tokio::main]
 async fn main() -> Result<()> {
     std::panic::set_hook(Box::new(|panic_info| {
-        eprintln!("   ❌ PANIC: {:?}", panic_info);
+        eprintln!("   ❌ PANIC: {panic_info:?}");
     }));
 
     let chunks_dir = blvm_bench::require_block_cache_dir()?;
 
     println!("🔨 Collecting blockchain chunks via RPC...");
     println!("   Target: {}", chunks_dir.display());
-    println!("   Blocks per chunk: {}", BLOCKS_PER_CHUNK);
+    println!("   Blocks per chunk: {BLOCKS_PER_CHUNK}");
 
     std::fs::create_dir_all(&chunks_dir)?;
 
@@ -33,12 +33,12 @@ async fn main() -> Result<()> {
         .get_block_count()
         .await
         .context("Failed to get chain height from node")?;
-    println!("   Chain height: {}", chain_height);
+    println!("   Chain height: {chain_height}");
 
     // Find which chunks we already have
     let mut first_missing_chunk = 0u64;
     loop {
-        let chunk_path = chunks_dir.join(format!("chunk_{}.bin.zst", first_missing_chunk));
+        let chunk_path = chunks_dir.join(format!("chunk_{first_missing_chunk}.bin.zst"));
         if chunk_path.exists() {
             // Verify chunk is complete (not truncated)
             let size = std::fs::metadata(&chunk_path)?.len();
@@ -47,8 +47,7 @@ async fn main() -> Result<()> {
                 first_missing_chunk += 1;
             } else {
                 println!(
-                    "   ⚠️  Chunk {} exists but seems incomplete ({} bytes), will recreate",
-                    first_missing_chunk, size
+                    "   ⚠️  Chunk {first_missing_chunk} exists but seems incomplete ({size} bytes), will recreate"
                 );
                 break;
             }
@@ -59,25 +58,23 @@ async fn main() -> Result<()> {
 
     let start_height = first_missing_chunk * BLOCKS_PER_CHUNK;
     println!(
-        "   Starting from height: {} (chunk {})",
-        start_height, first_missing_chunk
+        "   Starting from height: {start_height} (chunk {first_missing_chunk})"
     );
 
     // Process chunks
-    let num_chunks = (chain_height + 1 + BLOCKS_PER_CHUNK - 1) / BLOCKS_PER_CHUNK;
+    let num_chunks = (chain_height + 1).div_ceil(BLOCKS_PER_CHUNK);
 
     for chunk_num in first_missing_chunk..num_chunks {
         let chunk_start = chunk_num * BLOCKS_PER_CHUNK;
         let chunk_end = ((chunk_num + 1) * BLOCKS_PER_CHUNK - 1).min(chain_height);
 
         println!(
-            "\n📦 Creating chunk {} (blocks {}-{})...",
-            chunk_num, chunk_start, chunk_end
+            "\n📦 Creating chunk {chunk_num} (blocks {chunk_start}-{chunk_end})..."
         );
 
-        let temp_path = chunks_dir.join(format!("chunk_{}.bin.tmp", chunk_num));
-        let chunk_path = chunks_dir.join(format!("chunk_{}.bin.zst", chunk_num));
-        let progress_path = chunks_dir.join(format!("chunk_{}.progress", chunk_num));
+        let temp_path = chunks_dir.join(format!("chunk_{chunk_num}.bin.tmp"));
+        let chunk_path = chunks_dir.join(format!("chunk_{chunk_num}.bin.zst"));
+        let progress_path = chunks_dir.join(format!("chunk_{chunk_num}.progress"));
 
         // Check for resume from progress file
         let mut current_height = chunk_start;
@@ -87,8 +84,7 @@ async fn main() -> Result<()> {
                     if h > chunk_start && h <= chunk_end {
                         current_height = h;
                         println!(
-                            "   📊 Resuming from height {} (progress file found)",
-                            current_height
+                            "   📊 Resuming from height {current_height} (progress file found)"
                         );
                     }
                 }
@@ -120,16 +116,14 @@ async fn main() -> Result<()> {
                 Ok(Ok(data)) => data,
                 Ok(Err(e)) => {
                     eprintln!(
-                        "   ⚠️  Failed to fetch block {}: {}, retrying...",
-                        current_height, e
+                        "   ⚠️  Failed to fetch block {current_height}: {e}, retrying..."
                     );
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     continue;
                 }
                 Err(_) => {
                     eprintln!(
-                        "   ⚠️  Timeout fetching block {}, retrying...",
-                        current_height
+                        "   ⚠️  Timeout fetching block {current_height}, retrying..."
                     );
                     continue;
                 }
@@ -170,14 +164,12 @@ async fn main() -> Result<()> {
 
         writer.flush()?;
         println!(
-            "\n   ✅ Chunk {} data collected ({} blocks)",
-            chunk_num, blocks_written
+            "\n   ✅ Chunk {chunk_num} data collected ({blocks_written} blocks)"
         );
 
         // Compress chunk
         println!(
-            "   🗜️  Compressing chunk {} (this may take a while)...",
-            chunk_num
+            "   🗜️  Compressing chunk {chunk_num} (this may take a while)..."
         );
         let status = Command::new("zstd")
             .args(["-T0", "-19", "-f", "-o"])
@@ -205,7 +197,9 @@ async fn main() -> Result<()> {
     let meta_path = chunks_dir.join("chunks.meta");
     let meta_content = format!(
         "# Chunk metadata\n# Collected via RPC\ntotal_blocks={}\nnum_chunks={}\nblocks_per_chunk={}\ncompression=zstd\n",
-        chain_height + 1, num_chunks, BLOCKS_PER_CHUNK
+        chain_height + 1,
+        num_chunks,
+        BLOCKS_PER_CHUNK
     );
     std::fs::write(&meta_path, meta_content)?;
 

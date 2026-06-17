@@ -210,7 +210,9 @@ async fn test_verify_utxo_set_blocks_0_15() -> Result<()> {
                 "     Full calculated:     {}",
                 hex::encode(&calculated_txid)
             );
-            println!("     Full expected:        c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd3704");
+            println!(
+                "     Full expected:        c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd3704"
+            );
 
             // Check serialization and manual hash calculation
             use blvm_protocol::serialization::transaction::serialize_transaction;
@@ -302,9 +304,15 @@ async fn test_verify_utxo_set_blocks_0_15() -> Result<()> {
                         .map(|b| format!("{:02x}", b))
                         .collect();
                     if let Some(utxo) = utxo_set.get(&input.prevout) {
-                        println!("    Input {}: prevout {}:{} ✅ EXISTS (value={}, height={}, coinbase={})",
-                                 input_idx, hash_str, input.prevout.index,
-                                 utxo.value, utxo.height, utxo.is_coinbase);
+                        println!(
+                            "    Input {}: prevout {}:{} ✅ EXISTS (value={}, height={}, coinbase={})",
+                            input_idx,
+                            hash_str,
+                            input.prevout.index,
+                            utxo.value,
+                            utxo.height,
+                            utxo.is_coinbase
+                        );
                     } else {
                         println!(
                             "    Input {}: prevout {}:{} ❌ MISSING",
@@ -323,9 +331,13 @@ async fn test_verify_utxo_set_blocks_0_15() -> Result<()> {
                                     .map(|b| format!("{:02x}", b))
                                     .collect();
                                 if input.prevout.hash == block_txids[prev_tx_idx] {
-                                    println!("      ✅ MATCH! This is from TX {} (txid: {}) in this block, output index: {}",
-                                             prev_tx_idx, prev_txid_str, input.prevout.index);
-                                    println!("      🔍 This is an intra-block dependency - should be available in temp_utxo_set");
+                                    println!(
+                                        "      ✅ MATCH! This is from TX {} (txid: {}) in this block, output index: {}",
+                                        prev_tx_idx, prev_txid_str, input.prevout.index
+                                    );
+                                    println!(
+                                        "      🔍 This is an intra-block dependency - should be available in temp_utxo_set"
+                                    );
                                 } else {
                                     println!(
                                         "      Not from TX {} (txid: {})",
@@ -389,7 +401,10 @@ async fn test_verify_utxo_set_blocks_0_15() -> Result<()> {
                         // Check if it's from an earlier transaction in this block
                         for prev_tx_idx in 0..tx_idx {
                             if input.prevout.hash == block_txids[prev_tx_idx] {
-                                println!("      ✅ But it IS from TX {} in this block - should be in temp_utxo_set!", prev_tx_idx);
+                                println!(
+                                    "      ✅ But it IS from TX {} in this block - should be in temp_utxo_set!",
+                                    prev_tx_idx
+                                );
                             }
                         }
                     }

@@ -54,13 +54,8 @@ fn write_checkpoint_temp_rename(
     }
     write_result?;
 
-    std::fs::rename(&tmp_path, path).with_context(|| {
-        format!(
-            "rename {} -> {}",
-            tmp_path.display(),
-            path.display()
-        )
-    })?;
+    std::fs::rename(&tmp_path, path)
+        .with_context(|| format!("rename {} -> {}", tmp_path.display(), path.display()))?;
     Ok(())
 }
 
@@ -118,8 +113,7 @@ impl CheckpointManager {
         }
         let mut file = File::open(&path).with_context(|| format!("open {}", path.display()))?;
         let mut magic = [0u8; 8];
-        file
-            .read_exact(&mut magic)
+        file.read_exact(&mut magic)
             .with_context(|| format!("read magic {}", path.display()))?;
 
         if magic == *crate::utxo_snapshot_fixed_v1::FIXED_V1_MAGIC {
@@ -132,8 +126,7 @@ impl CheckpointManager {
         }
 
         let mut data = magic.to_vec();
-        file
-            .read_to_end(&mut data)
+        file.read_to_end(&mut data)
             .with_context(|| format!("read body {}", path.display()))?;
 
         let raw: HashMap<OutPoint, UTXO> = bincode::deserialize(&data)
@@ -163,10 +156,8 @@ impl CheckpointManager {
 
         match format {
             CheckpointFormat::Bincode => {
-                let map: HashMap<OutPoint, UTXO> = utxo
-                    .iter()
-                    .map(|(k, v)| (*k, (**v).clone()))
-                    .collect();
+                let map: HashMap<OutPoint, UTXO> =
+                    utxo.iter().map(|(k, v)| (*k, (**v).clone())).collect();
                 write_checkpoint_temp_rename(&path, height, |file| {
                     let mut w = BufWriter::with_capacity(1024 * 1024, file);
                     bincode::serialize_into(&mut w, &map)
@@ -223,8 +214,8 @@ impl CheckpointManager {
             return Ok(0);
         }
         let mut heights: Vec<u64> = Vec::new();
-        for entry in std::fs::read_dir(&dir)
-            .with_context(|| format!("read_dir {}", dir.display()))?
+        for entry in
+            std::fs::read_dir(&dir).with_context(|| format!("read_dir {}", dir.display()))?
         {
             let entry = entry?;
             let name = entry.file_name();

@@ -6,7 +6,7 @@ use anyhow::Result;
 use blvm_bench::core_rpc_client::{CoreRpcClient, RpcConfig};
 #[cfg(feature = "differential")]
 use blvm_bench::parallel_differential::{
-    create_block_data_source, run_parallel_differential, ParallelConfig,
+    ParallelConfig, create_block_data_source, run_parallel_differential,
 };
 #[cfg(feature = "differential")]
 use std::sync::Arc;
@@ -29,7 +29,10 @@ async fn test_remote_core_historical_100_blocks() -> Result<()> {
                 Some(client)
             }
             Err(e) => {
-                println!("⚠️  RPC connection failed: {}. Using direct file reading (blocks from Core files assumed valid)", e);
+                println!(
+                    "⚠️  RPC connection failed: {}. Using direct file reading (blocks from Core files assumed valid)",
+                    e
+                );
                 None
             }
         }

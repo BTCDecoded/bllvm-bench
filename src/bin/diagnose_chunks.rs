@@ -72,7 +72,7 @@ fn main() -> Result<()> {
             }
             let block_size = u32::from_le_bytes(size_buf) as usize;
 
-            if block_size < 80 || block_size > 4_000_000 {
+            if !(80..=4_000_000).contains(&block_size) {
                 break;
             }
 
@@ -91,8 +91,8 @@ fn main() -> Result<()> {
             }
 
             // Calculate block hash
-            let first = Sha256::digest(&header);
-            let second = Sha256::digest(&first);
+            let first = Sha256::digest(header);
+            let second = Sha256::digest(first);
             let mut block_hash = [0u8; 32];
             block_hash.copy_from_slice(&second);
             block_hash.reverse(); // Big-endian
@@ -135,10 +135,9 @@ fn main() -> Result<()> {
             .map(|h| h.iter().all(|&b| b == 0))
             .unwrap_or(false);
 
-        println!("   Blocks scanned: {} (sample)", block_count);
+        println!("   Blocks scanned: {block_count} (sample)");
         println!(
-            "   New unique: {}, Duplicates: {}",
-            chunk_new_hashes, chunk_duplicates
+            "   New unique: {chunk_new_hashes}, Duplicates: {chunk_duplicates}"
         );
         if let Some(hash) = first_hash {
             println!("   First block hash: {}...", hex::encode(&hash[..8]));
@@ -153,7 +152,7 @@ fn main() -> Result<()> {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("📊 SUMMARY:");
     println!("   Total unique blocks found: {}", all_hashes.len());
-    println!("   Total duplicates found: {}", duplicate_count);
+    println!("   Total duplicates found: {duplicate_count}");
 
     Ok(())
 }

@@ -10,10 +10,10 @@
 
 use blvm_node::validation::{BlockValidationContext, ParallelBlockValidator};
 use blvm_protocol::{
-    tx_inputs, tx_outputs, types::Network, Block, BlockHeader, OutPoint, Transaction,
-    TransactionInput, TransactionOutput, UtxoSet,
+    Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UtxoSet,
+    tx_inputs, tx_outputs, types::Network,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::time::Instant;
 const NUM_BLOCKS: usize = 1000;
 const DEPTH_FROM_TIP: usize = 200; // Deep enough to enable parallel validation (>100)
@@ -38,7 +38,7 @@ fn create_test_block_matching_core(
             sequence: 0xffffffff,
         }],
         outputs: tx_outputs![TransactionOutput {
-            value: 50_000_000_000,     // 50 BTC
+            value: 50_000_000_000, // 50 BTC
             script_pubkey: vec![blvm_protocol::opcodes::OP_1],
         }],
         lock_time: 0,

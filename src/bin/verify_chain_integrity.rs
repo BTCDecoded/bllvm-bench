@@ -7,7 +7,7 @@
 //!   BLOCK_CACHE_DIR=/path ./target/release/verify_chain_integrity --limit 10000
 
 use anyhow::{Context, Result};
-use blvm_bench::chunked_cache::{load_chunk_metadata, ChunkedBlockIterator};
+use blvm_bench::chunked_cache::{ChunkedBlockIterator, load_chunk_metadata};
 use blvm_protocol::constants::GENESIS_BLOCK_HASH;
 use clap::Parser;
 use sha2::{Digest, Sha256};
@@ -101,7 +101,10 @@ fn main() -> Result<()> {
             if block_prev_hash != prev_hash {
                 eprintln!("❌ Prev hash chain broken at height {}!", height);
                 eprintln!("   Expected (prev block hash): {}", hex::encode(prev_hash));
-                eprintln!("   Got (block's prev_hash):    {}", hex::encode(block_prev_hash));
+                eprintln!(
+                    "   Got (block's prev_hash):    {}",
+                    hex::encode(block_prev_hash)
+                );
                 anyhow::bail!("Chain integrity failed at height {}", height);
             }
         }
@@ -118,7 +121,12 @@ fn main() -> Result<()> {
     let elapsed = start.elapsed().as_secs_f64();
     eprintln!();
     eprintln!("✅ Chain integrity PASSED");
-    eprintln!("   Verified {} blocks in {:.1}s ({:.1} blk/s)", verified, elapsed, verified as f64 / elapsed);
+    eprintln!(
+        "   Verified {} blocks in {:.1}s ({:.1} blk/s)",
+        verified,
+        elapsed,
+        verified as f64 / elapsed
+    );
     eprintln!("   Genesis: correct");
     eprintln!("   Prev_hash chain: intact");
 

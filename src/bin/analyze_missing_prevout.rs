@@ -81,7 +81,8 @@ fn main() -> Result<()> {
 
     let chunks_dir = blvm_bench::require_block_cache_dir()?;
 
-    let outputs_file = blvm_bench::block_cache_env::sort_merge_data_dir()?.join("outputs_sorted.bin");
+    let outputs_file =
+        blvm_bench::block_cache_env::sort_merge_data_dir()?.join("outputs_sorted.bin");
 
     println!("🔍 Analyzing missing prevout:");
     println!("  Block: {}", block_height);

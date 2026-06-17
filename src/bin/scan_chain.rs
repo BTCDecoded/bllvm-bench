@@ -12,16 +12,16 @@
 
 use anyhow::{Context, Result};
 use blvm_bench::chain_scan::{
-    analyze_block, analyze_block_with_outpoint_index, merge_block_into_results, ChainScanResults,
-    INSCRIPTIONS_START_HEIGHT, SEGWIT_START_HEIGHT, TAPROOT_START_HEIGHT,
+    ChainScanResults, INSCRIPTIONS_START_HEIGHT, SEGWIT_START_HEIGHT, TAPROOT_START_HEIGHT,
+    analyze_block, analyze_block_with_outpoint_index, merge_block_into_results,
 };
-use blvm_protocol::types::OutPoint;
-use rustc_hash::FxHashMap;
-use blvm_bench::chunked_cache::{get_chunks_dir, load_chunk_metadata, ChunkedBlockIterator};
+use blvm_bench::chunked_cache::{ChunkedBlockIterator, get_chunks_dir, load_chunk_metadata};
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
 use blvm_protocol::spam_filter::{SpamFilter, SpamFilterPreset};
+use blvm_protocol::types::OutPoint;
 use clap::Parser;
 use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -140,7 +140,10 @@ fn main() -> Result<()> {
         args.spam_preset
     );
     let batch_size = if args.grandfathered {
-        eprintln!("   Grandfathered: enabled (sequential scan, BIP-110 activation @ {})", args.bip110_activation_height);
+        eprintln!(
+            "   Grandfathered: enabled (sequential scan, BIP-110 activation @ {})",
+            args.bip110_activation_height
+        );
         1usize
     } else {
         eprintln!(
@@ -368,7 +371,10 @@ fn main() -> Result<()> {
         results.blocked_txs_with_control_violation, results.blocked_weight_with_control_violation
     );
     eprintln!();
-    eprintln!("Tapscript OP_IF (BIP-110): {} txs with OP_IF/OP_NOTIF in tapscript", results.block_txs_with_tapscript_op_if_violation);
+    eprintln!(
+        "Tapscript OP_IF (BIP-110): {} txs with OP_IF/OP_NOTIF in tapscript",
+        results.block_txs_with_tapscript_op_if_violation
+    );
     if results.tapscript_op_if_grandfathered > 0 || results.tapscript_op_if_unspendable > 0 {
         let total = results.tapscript_op_if_grandfathered + results.tapscript_op_if_unspendable;
         eprintln!(
@@ -381,7 +387,11 @@ fn main() -> Result<()> {
         );
         if total > 0 {
             let pct_g = 100.0 * results.tapscript_op_if_grandfathered as f64 / total as f64;
-            eprintln!("  → {:.1}% grandfathered, {:.1}% would be stuck", pct_g, 100.0 - pct_g);
+            eprintln!(
+                "  → {:.1}% grandfathered, {:.1}% would be stuck",
+                pct_g,
+                100.0 - pct_g
+            );
         }
     }
     eprintln!();

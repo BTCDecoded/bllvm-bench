@@ -15,7 +15,7 @@ pub fn run_benchmark(script: &str) -> Result<()> {
     let script_name = if script.ends_with(".sh") {
         script.to_string()
     } else {
-        format!("{}.sh", script)
+        format!("{script}.sh")
     };
 
     let script_path = benchmarks_dir.join(&script_name);
@@ -42,7 +42,7 @@ pub fn run_benchmark(script: &str) -> Result<()> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .with_context(|| format!("Failed to run benchmark: {}", script))?;
+        .with_context(|| format!("Failed to run benchmark: {script}"))?;
 
     if !status.success() {
         anyhow::bail!(
@@ -51,7 +51,7 @@ pub fn run_benchmark(script: &str) -> Result<()> {
         );
     }
 
-    println!("✅ Benchmark completed: {}", script_name);
+    println!("✅ Benchmark completed: {script_name}");
     Ok(())
 }
 
@@ -82,7 +82,7 @@ pub fn run_all() -> Result<()> {
     for script in &suite_scripts {
         let script_path = benchmarks_dir.join(script);
         if script_path.exists() {
-            println!("Running suite: {}", script);
+            println!("Running suite: {script}");
             run_benchmark(script)?;
             found = true;
             break;
@@ -96,7 +96,7 @@ pub fn run_all() -> Result<()> {
             for entry in entries.flatten() {
                 if let Some(name) = entry.file_name().to_str() {
                     if name.ends_with(".sh") && entry.path().is_file() {
-                        println!("  - {}", name);
+                        println!("  - {name}");
                     }
                 }
             }

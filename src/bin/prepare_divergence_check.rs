@@ -2,7 +2,7 @@
 //! Processes chunks in order for optimal I/O performance
 
 use anyhow::Result;
-use blvm_bench::chunk_index::{load_block_index, BlockIndex};
+use blvm_bench::chunk_index::{BlockIndex, load_block_index};
 use blvm_bench::chunked_cache::SharedChunkCache;
 use blvm_protocol::serialization::block::deserialize_block_with_witnesses;
 use blvm_protocol::serialization::transaction::serialize_transaction;

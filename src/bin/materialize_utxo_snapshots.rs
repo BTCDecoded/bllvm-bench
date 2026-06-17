@@ -11,7 +11,7 @@
 //! height of the current UTXO set.  Whenever the current height has no on-disk
 //! `utxo_<current_height>.bin`, one is written before continuing.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use blvm_bench::utxo_delta::{apply_delta, read_delta};
 use blvm_bench::utxo_snapshot_fixed_v1::{
     decode_fixed_v1_file, encode_fixed_v1_unsorted_to_writer,

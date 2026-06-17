@@ -33,7 +33,7 @@ pub async fn build_block_index_via_rpc(
 
     // OPTIMIZATION: Try to load existing index and hash map first (resume from previous run)
     use crate::chunk_index::{
-        build_block_index, load_block_index, load_hash_map, save_hash_map, BlockHashMap,
+        BlockHashMap, build_block_index, load_block_index, load_hash_map, save_hash_map,
     };
     use std::collections::HashMap;
 
@@ -161,8 +161,14 @@ pub async fn build_block_index_via_rpc(
             let elapsed = start_time.elapsed();
             let rate = h as f64 / elapsed.as_secs_f64();
             let remaining = (max_h - h) as f64 / rate;
-            println!("   📊 Pre-computing progress: {}/{} ({:.1}%), {} missing so far, ~{:.0}s remaining", 
-                     h, max_h, (h as f64 / (max_h + 1) as f64) * 100.0, missing_heights.len(), remaining);
+            println!(
+                "   📊 Pre-computing progress: {}/{} ({:.1}%), {} missing so far, ~{:.0}s remaining",
+                h,
+                max_h,
+                (h as f64 / (max_h + 1) as f64) * 100.0,
+                missing_heights.len(),
+                remaining
+            );
         }
     }
     let elapsed = start_time.elapsed();
@@ -207,7 +213,10 @@ pub async fn build_block_index_via_rpc(
             let actual_count = index.len();
             if actual_count < expected_count {
                 let missing = expected_count - actual_count;
-                println!("   🔄 Iterator exhausted but {} blocks still missing - recomputing missing heights...", missing);
+                println!(
+                    "   🔄 Iterator exhausted but {} blocks still missing - recomputing missing heights...",
+                    missing
+                );
 
                 // Recompute missing heights to retry failed blocks
                 missing_heights.clear();
@@ -269,7 +278,7 @@ pub async fn build_block_index_via_rpc(
         }
 
         // OPTIMIZATION: Use batch RPC call - single SSH round-trip for all heights!
-        use tokio::time::{timeout, Duration as TokioDuration};
+        use tokio::time::{Duration as TokioDuration, timeout};
         const BATCH_TIMEOUT: TokioDuration = TokioDuration::from_secs(60); // 1 minute for batch (single call)
 
         if processed_count <= 20000 || processed_count % 50000 == 0 {
@@ -326,7 +335,9 @@ pub async fn build_block_index_via_rpc(
 
         // Process results - first pass: identify missing blocks
         if batch_results.is_empty() {
-            eprintln!("   ⚠️  WARNING: No results from batch - batch may have timed out or all calls failed");
+            eprintln!(
+                "   ⚠️  WARNING: No results from batch - batch may have timed out or all calls failed"
+            );
             eprintln!("   💡 Skipping this batch and continuing to next batch");
             // Continue to next batch iteration
             continue;
@@ -397,8 +408,11 @@ pub async fn build_block_index_via_rpc(
         if !missing_blocks_to_fetch.is_empty() {
             const FETCH_TIMEOUT: TokioDuration = TokioDuration::from_secs(10); // 10 second timeout (LAN is fast)
 
-            println!("   🔍 DEBUG: Starting to fetch {} missing blocks for batch starting at height {}...", 
-                     missing_blocks_to_fetch.len(), current_height);
+            println!(
+                "   🔍 DEBUG: Starting to fetch {} missing blocks for batch starting at height {}...",
+                missing_blocks_to_fetch.len(),
+                current_height
+            );
 
             // Fetch missing blocks in parallel batches (to avoid overwhelming RPC)
             let num_chunks = (missing_blocks_to_fetch.len() + MISSING_BLOCK_CONCURRENCY - 1)
@@ -451,8 +465,13 @@ pub async fn build_block_index_via_rpc(
                 const CHUNK_TIMEOUT: TokioDuration = TokioDuration::from_secs(60); // 1 minute timeout per chunk (LAN is fast)
 
                 if chunk_idx % 5 == 0 || chunk_idx == 0 {
-                    println!("   🔍 DEBUG: Executing missing block chunk {}/{} ({} blocks) with {:.0}s timeout...", 
-                             chunk_idx + 1, num_chunks, chunk.len(), CHUNK_TIMEOUT.as_secs());
+                    println!(
+                        "   🔍 DEBUG: Executing missing block chunk {}/{} ({} blocks) with {:.0}s timeout...",
+                        chunk_idx + 1,
+                        num_chunks,
+                        chunk.len(),
+                        CHUNK_TIMEOUT.as_secs()
+                    );
                 }
 
                 let chunk_results = match timeout(
@@ -463,9 +482,15 @@ pub async fn build_block_index_via_rpc(
                 {
                     Ok(results) => results,
                     Err(_) => {
-                        eprintln!("   ⚠️  WARNING: Chunk {}/{} timed out after {:.0}s - some blocks may not have been fetched", 
-                                 chunk_idx + 1, num_chunks, CHUNK_TIMEOUT.as_secs());
-                        eprintln!("   💡 Continuing with next chunk - failed blocks will be retried on next run");
+                        eprintln!(
+                            "   ⚠️  WARNING: Chunk {}/{} timed out after {:.0}s - some blocks may not have been fetched",
+                            chunk_idx + 1,
+                            num_chunks,
+                            CHUNK_TIMEOUT.as_secs()
+                        );
+                        eprintln!(
+                            "   💡 Continuing with next chunk - failed blocks will be retried on next run"
+                        );
                         // Return empty results to skip this chunk
                         vec![]
                     }
@@ -508,14 +533,21 @@ pub async fn build_block_index_via_rpc(
                         e
                     );
                 } else {
-                    println!("   💾 Saved index after missing blocks batch ({} entries) - progress preserved", index.len());
+                    println!(
+                        "   💾 Saved index after missing blocks batch ({} entries) - progress preserved",
+                        index.len()
+                    );
                     last_save_height = index.len() as u64;
                 }
 
                 // DEBUG: Log progress within missing block fetching
                 if chunk_idx % 10 == 0 || chunk_idx == num_chunks - 1 {
-                    println!("   🔍 DEBUG: Processed missing block chunk {}/{} ({} total missing blocks in this batch)", 
-                             chunk_idx + 1, num_chunks, missing_blocks_to_fetch.len());
+                    println!(
+                        "   🔍 DEBUG: Processed missing block chunk {}/{} ({} total missing blocks in this batch)",
+                        chunk_idx + 1,
+                        num_chunks,
+                        missing_blocks_to_fetch.len()
+                    );
                 }
             }
 
@@ -528,13 +560,18 @@ pub async fn build_block_index_via_rpc(
         } else {
             // DEBUG: Log when no missing blocks found in batch
             if processed_count <= 20000 || processed_count % 50000 == 0 {
-                println!("   🔍 DEBUG: No missing blocks in batch starting at height {} (all found in chunks)", current_height);
+                println!(
+                    "   🔍 DEBUG: No missing blocks in batch starting at height {} (all found in chunks)",
+                    current_height
+                );
             }
         }
 
         // DEBUG: Log loop continuation - CRITICAL to see if loop continues
-        println!("   🔍 DEBUG: Completed batch processing for heights starting at {}, continuing to next batch... (processed: {}, remaining: {})", 
-                 current_height, processed_count, remaining);
+        println!(
+            "   🔍 DEBUG: Completed batch processing for heights starting at {}, continuing to next batch... (processed: {}, remaining: {})",
+            current_height, processed_count, remaining
+        );
 
         // Missing block fetching is now handled above with timeout protection
 

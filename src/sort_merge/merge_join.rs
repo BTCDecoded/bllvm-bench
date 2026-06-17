@@ -22,7 +22,7 @@ use std::time::Instant;
 
 use super::input_refs::InputRef;
 use super::output_refs::{
-    compact_output_leftover, take_raw_output_record, OutputRef, MAX_SCRIPT_PUBKEY_LEN,
+    MAX_SCRIPT_PUBKEY_LEN, OutputRef, compact_output_leftover, take_raw_output_record,
 };
 
 /// Fixed header before variable scriptPubKey in joined prevout records.

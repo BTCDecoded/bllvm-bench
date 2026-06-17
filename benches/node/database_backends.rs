@@ -23,8 +23,8 @@
 mod database_backends_support;
 
 use blvm_node::storage::database::Tree;
-use blvm_node::storage::utxo_value_codec::{decode_utxo_with_codec, ValueCodec};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use blvm_node::storage::utxo_value_codec::{ValueCodec, decode_utxo_with_codec};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use database_backends_support::{key_refs, open_redb_utxo_tree};
 
 #[cfg(feature = "node-benches-heed3")]

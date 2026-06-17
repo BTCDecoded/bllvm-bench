@@ -9,10 +9,10 @@
 use blvm_protocol::mining::calculate_merkle_root;
 use blvm_protocol::validation::ProtocolValidationContext;
 use blvm_protocol::{
-    tx_inputs, tx_outputs, BitcoinProtocolEngine, Block, BlockHeader, OutPoint, ProtocolVersion,
-    Transaction, TransactionInput, TransactionOutput, UtxoSet,
+    BitcoinProtocolEngine, Block, BlockHeader, OutPoint, ProtocolVersion, Transaction,
+    TransactionInput, TransactionOutput, UtxoSet, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 /// Create a test block for CheckBlock benchmark
 /// Matches Core's block413567 structure (simplified for testing)

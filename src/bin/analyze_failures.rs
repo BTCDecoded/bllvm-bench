@@ -33,17 +33,17 @@ fn main() -> Result<()> {
     let mut sorted: Vec<_> = block_counts.iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(a.1));
     for (block, count) in sorted.iter().take(20) {
-        println!("  Block {}: {} failures", block, count);
+        println!("  Block {block}: {count} failures");
     }
 
     println!("\n=== Sample Failures ===");
     for (block, details) in sample_failures.iter().take(10) {
-        println!("  Block {}: {}", block, details);
+        println!("  Block {block}: {details}");
     }
 
     println!("\n=== Block Range Analysis ===");
     let mut ranges: HashMap<&str, u64> = HashMap::new();
-    for (block, _) in &block_counts {
+    for block in block_counts.keys() {
         if *block < 100000 {
             *ranges.entry("< 100k").or_insert(0) += 1;
         } else if *block < 200000 {
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
         }
     }
     for (range, count) in ranges {
-        println!("  {}: {} blocks with failures", range, count);
+        println!("  {range}: {count} blocks with failures");
     }
 
     Ok(())

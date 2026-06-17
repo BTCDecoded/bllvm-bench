@@ -417,7 +417,9 @@ pub fn extract_outputs(
                         "    2. Chunk metadata (chunks.meta) reports fewer blocks than available"
                     );
                     eprintln!("    3. Block index is incomplete");
-                    eprintln!("  Solution: Ensure chunks contain all blocks up to {end_height} or update chunks.meta");
+                    eprintln!(
+                        "  Solution: Ensure chunks contain all blocks up to {end_height} or update chunks.meta"
+                    );
                 }
                 // Stop extraction - we've processed all available blocks
                 break;

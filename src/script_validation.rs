@@ -3,9 +3,9 @@
 //! Compares script verification between BLVM and Core for a single input when full
 //! prevout data is available.
 
-use anyhow::{bail, Result};
-use bitcoinconsensus::{verify_with_flags, VERIFY_ALL_PRE_TAPROOT};
-use blvm_protocol::script::{verify_script_with_context_full, SigVersion};
+use anyhow::{Result, bail};
+use bitcoinconsensus::{VERIFY_ALL_PRE_TAPROOT, verify_with_flags};
+use blvm_protocol::script::{SigVersion, verify_script_with_context_full};
 use blvm_protocol::serialization::transaction::serialize_transaction;
 use blvm_protocol::types::{Block, ByteString, Network, Transaction};
 
@@ -29,9 +29,7 @@ pub fn compare_script_verification(
     input_index: usize,
     consensus_flags: u32,
 ) -> Result<ScriptComparisonResult> {
-    if prevout_values.len() != tx.inputs.len()
-        || prevout_script_pubkeys.len() != tx.inputs.len()
-    {
+    if prevout_values.len() != tx.inputs.len() || prevout_script_pubkeys.len() != tx.inputs.len() {
         bail!(
             "prevout slices (values={}, scripts={}) must match input count {}",
             prevout_values.len(),

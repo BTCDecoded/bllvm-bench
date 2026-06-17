@@ -13,7 +13,8 @@ use sha2::{Digest, Sha256};
 fn find_block1_direct() -> Result<()> {
     std::env::remove_var("BLOCK_CACHE_DIR");
 
-    let data_dir = std::path::PathBuf::from(std::env::var("BITCOIN_DATA_DIR").expect("BITCOIN_DATA_DIR"));
+    let data_dir =
+        std::path::PathBuf::from(std::env::var("BITCOIN_DATA_DIR").expect("BITCOIN_DATA_DIR"));
     let reader = BlockFileReader::new(data_dir, BlockFileNetwork::Mainnet)?;
 
     let genesis_hash_be =

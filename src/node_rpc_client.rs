@@ -55,12 +55,9 @@ impl RpcConfig {
     ///   `START9_RPC_*`, `LAND_NODE_RPC_*`, `REMOTE_CORE_RPC_*` (same as `remote_core_rpc`)
     /// - `BITCOIN_NETWORK` (default: "mainnet") - used to determine default port
     pub fn from_env() -> Self {
-        let rpc_host = env_first_non_empty(&[
-            "BITCOIN_RPC_HOST",
-            "START9_RPC_HOST",
-            "LAND_NODE_RPC_HOST",
-        ])
-        .unwrap_or_else(|| "127.0.0.1".to_string());
+        let rpc_host =
+            env_first_non_empty(&["BITCOIN_RPC_HOST", "START9_RPC_HOST", "LAND_NODE_RPC_HOST"])
+                .unwrap_or_else(|| "127.0.0.1".to_string());
 
         let rpc_user = env_first_non_empty(&[
             "BITCOIN_RPC_USER",
@@ -91,9 +88,10 @@ impl RpcConfig {
             _ => 8332, // Default to mainnet
         };
 
-        let rpc_port = env_first_non_empty(&["BITCOIN_RPC_PORT", "START9_RPC_PORT", "LAND_NODE_RPC_PORT"])
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(default_port);
+        let rpc_port =
+            env_first_non_empty(&["BITCOIN_RPC_PORT", "START9_RPC_PORT", "LAND_NODE_RPC_PORT"])
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(default_port);
 
         let url = format!("http://{}:{}", rpc_host, rpc_port);
 
@@ -262,8 +260,7 @@ impl NodeRpcClient {
     pub async fn getblock_bytes_at_height(&self, height: u64) -> Result<Vec<u8>> {
         let hash = self.getblockhash(height).await?;
         let hex = self.getblock_raw(&hash).await?;
-        hex::decode(hex.trim())
-            .with_context(|| format!("decode getblock hex at height {height}"))
+        hex::decode(hex.trim()).with_context(|| format!("decode getblock hex at height {height}"))
     }
 
     /// Generate blocks (regtest only)

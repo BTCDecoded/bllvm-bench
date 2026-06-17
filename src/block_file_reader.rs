@@ -200,7 +200,10 @@ impl BlockFileReader {
                 // Try to skip past this corrupted block if size is reasonable
                 // If size is absurdly large, we can't seek past it - break
                 if block_len > 10 * 1024 * 1024 * 1024 {
-                    eprintln!("   ⚠️  ERROR: Corrupted block size too large to skip ({} bytes), stopping chunk", block_len);
+                    eprintln!(
+                        "   ⚠️  ERROR: Corrupted block size too large to skip ({} bytes), stopping chunk",
+                        block_len
+                    );
                     break;
                 }
                 // Seek past the corrupted block data
@@ -286,7 +289,10 @@ impl BlockFileReader {
                     if second_hash.iter().all(|&b| b == 0) {
                         // Only log first few to avoid I/O overhead
                         if skipped_blocks < 10 {
-                            eprintln!("   ⚠️  WARNING: Skipping block {} in chunk {} (all-zero hash - corrupted)", current_block_index, chunk_num);
+                            eprintln!(
+                                "   ⚠️  WARNING: Skipping block {} in chunk {} (all-zero hash - corrupted)",
+                                current_block_index, chunk_num
+                            );
                         }
                         skipped_blocks += 1;
                         current_block_index += 1;
@@ -304,7 +310,10 @@ impl BlockFileReader {
                         if block_hash[..8] != GENESIS_PREFIX {
                             // Only log first few to avoid I/O overhead
                             if skipped_blocks < 10 {
-                                eprintln!("   ⚠️  WARNING: Skipping block {} in chunk {} (prev_hash all zeros but not genesis - corrupted)", current_block_index, chunk_num);
+                                eprintln!(
+                                    "   ⚠️  WARNING: Skipping block {} in chunk {} (prev_hash all zeros but not genesis - corrupted)",
+                                    current_block_index, chunk_num
+                                );
                             }
                             skipped_blocks += 1;
                             current_block_index += 1;
@@ -368,8 +377,10 @@ impl BlockFileReader {
             let new_size = std::fs::metadata(&local_chunk)?.len();
             if existing_size > 1000 && new_size < existing_size / 10 {
                 // Existing chunk is much larger - don't overwrite with tiny file
-                eprintln!("   ⚠️  ERROR: chunk_{}.bin.zst already exists ({} bytes) and new chunk is much smaller ({} bytes) - SKIPPING to prevent corruption", 
-                         chunk_num, existing_size, new_size);
+                eprintln!(
+                    "   ⚠️  ERROR: chunk_{}.bin.zst already exists ({} bytes) and new chunk is much smaller ({} bytes) - SKIPPING to prevent corruption",
+                    chunk_num, existing_size, new_size
+                );
                 return Err(anyhow::anyhow!(
                     "Chunk {} already exists and is much larger - refusing to overwrite",
                     chunk_num
@@ -644,7 +655,9 @@ impl BlockFileReader {
     /// because we can read blocks directly from disk without network overhead.
     pub fn read_block_by_height(&self, _height: u64) -> Result<Vec<u8>> {
         // Future: map height via Bitcoin Core LevelDB `blocks/index/*` or an internal height index.
-        anyhow::bail!("Direct height lookup not yet implemented. Use read_block_by_hash or sequential reading.")
+        anyhow::bail!(
+            "Direct height lookup not yet implemented. Use read_block_by_hash or sequential reading."
+        )
     }
 
     /// Read blocks sequentially from block files
@@ -895,17 +908,25 @@ impl BlockIterator {
                         );
                         true
                     } else {
-                        println!("   ⚠️  Chunks exist but incomplete ({} blocks < {}k) - continuing file reading", metadata.total_blocks, expected_blocks / 1000);
+                        println!(
+                            "   ⚠️  Chunks exist but incomplete ({} blocks < {}k) - continuing file reading",
+                            metadata.total_blocks,
+                            expected_blocks / 1000
+                        );
                         false
                     }
                 } else {
                     // No metadata or can't read - assume incomplete, continue collection
-                    println!("   ⚠️  Chunks exist but no metadata - continuing file reading to ensure completeness...");
+                    println!(
+                        "   ⚠️  Chunks exist but no metadata - continuing file reading to ensure completeness..."
+                    );
                     false
                 };
 
                 if should_use_chunks {
-                    println!("   📍 DEBUG: Chunks dir exists and complete, trying to create ChunkedBlockIterator...");
+                    println!(
+                        "   📍 DEBUG: Chunks dir exists and complete, trying to create ChunkedBlockIterator..."
+                    );
                     // Try streaming iterator first (for large ranges)
                     match crate::chunked_cache::ChunkedBlockIterator::new(
                         chunks_path,
@@ -913,8 +934,12 @@ impl BlockIterator {
                         max_blocks,
                     ) {
                         Ok(Some(iter)) => {
-                            println!("   ✅ Using streaming chunked cache iterator (skipping file reading entirely)");
-                            println!("   📍 DEBUG: Successfully created chunked iterator, returning early");
+                            println!(
+                                "   ✅ Using streaming chunked cache iterator (skipping file reading entirely)"
+                            );
+                            println!(
+                                "   📍 DEBUG: Successfully created chunked iterator, returning early"
+                            );
                             chunked_iterator = Some(iter);
                             // Skip ALL file reading - chunks are already ordered!
                             return Ok(Self {
@@ -945,11 +970,16 @@ impl BlockIterator {
                             });
                         }
                         Ok(None) => {
-                            println!("   📍 DEBUG: ChunkedBlockIterator::new returned None (no chunks for this range)");
+                            println!(
+                                "   📍 DEBUG: ChunkedBlockIterator::new returned None (no chunks for this range)"
+                            );
                             // Chunked cache doesn't exist for this range, continue with file reading
                         }
                         Err(e) => {
-                            eprintln!("   ⚠️  Failed to create chunked cache iterator: {} - falling back to file reading", e);
+                            eprintln!(
+                                "   ⚠️  Failed to create chunked cache iterator: {} - falling back to file reading",
+                                e
+                            );
                             eprintln!("   📍 DEBUG: Error details: {:?}", e);
                             // Fallback to file reading
                         }
@@ -995,7 +1025,10 @@ impl BlockIterator {
                         // Chunked cache doesn't exist, try old format
                     }
                     Err(e) => {
-                        eprintln!("   ⚠️  Failed to create chunked cache iterator: {} - trying load_chunked_cache", e);
+                        eprintln!(
+                            "   ⚠️  Failed to create chunked cache iterator: {} - trying load_chunked_cache",
+                            e
+                        );
                         // Fallback to loading all blocks (only for small ranges)
                         match crate::chunked_cache::load_chunked_cache(
                             chunks_path,
@@ -1074,9 +1107,16 @@ impl BlockIterator {
                                     ordered_blocks = Some(blocks);
                                 } else {
                                     if block_count == 0 || blocks.len() == 0 {
-                                        eprintln!("   ⚠️  Cache file is empty ({} blocks) - will read from files", block_count);
+                                        eprintln!(
+                                            "   ⚠️  Cache file is empty ({} blocks) - will read from files",
+                                            block_count
+                                        );
                                     } else {
-                                        eprintln!("   ⚠️  Cache file corrupted (expected {} blocks, got {}) - will read from files", block_count, blocks.len());
+                                        eprintln!(
+                                            "   ⚠️  Cache file corrupted (expected {} blocks, got {}) - will read from files",
+                                            block_count,
+                                            blocks.len()
+                                        );
                                     }
                                     // Don't set ordered_blocks - let it read from files
                                     ordered_blocks = None;
@@ -1157,7 +1197,10 @@ impl BlockIterator {
 
                     // Check if chunk_0 is missing
                     if min_chunk > 0 {
-                        println!("   ⚠️  WARNING: Missing chunks detected! Chunks start at {} but chunk_0 is missing", min_chunk);
+                        println!(
+                            "   ⚠️  WARNING: Missing chunks detected! Chunks start at {} but chunk_0 is missing",
+                            min_chunk
+                        );
                         println!("   🔄 Will recreate missing chunks starting from chunk_0");
                         starting_block_count = 0; // Start from beginning to recreate missing chunks
                     } else {
@@ -1222,7 +1265,9 @@ impl BlockIterator {
                         "   ⚠️  Temp file exists with blocks, but chunks exist up to block {}",
                         starting_block_count
                     );
-                    println!("   📊 Will collect all blocks (out of order), then chunk based on actual heights");
+                    println!(
+                        "   📊 Will collect all blocks (out of order), then chunk based on actual heights"
+                    );
                     // Don't delete temp file - it may have blocks we need
                 }
             }
@@ -1280,7 +1325,9 @@ impl BlockIterator {
                         estimated_count,
                         file_size as f64 / 1_073_741_824.0
                     );
-                    println!("   🚀 Starting parallel reading immediately (counting continues in background)");
+                    println!(
+                        "   🚀 Starting parallel reading immediately (counting continues in background)"
+                    );
 
                     // Start background counting thread to get accurate count
                     let temp_file_clone = temp_file.clone();
@@ -1312,7 +1359,10 @@ impl BlockIterator {
                             // VALIDATION: Check block size is reasonable
                             if block_len > MAX_VALID_BLOCK_SIZE || block_len < MIN_VALID_BLOCK_SIZE
                             {
-                                eprintln!("   [Background] ⚠️  ERROR: Block {} has invalid size: {} bytes - stopping count", count, block_len);
+                                eprintln!(
+                                    "   [Background] ⚠️  ERROR: Block {} has invalid size: {} bytes - stopping count",
+                                    count, block_len
+                                );
                                 break; // Stop counting if corruption detected
                             }
 
@@ -1328,8 +1378,10 @@ impl BlockIterator {
                                 } else {
                                     0.0
                                 };
-                                eprintln!("   [Background] Counting: {} blocks ({:.0} blocks/sec, {:.1}% of file)", 
-                                         count, rate, progress_pct);
+                                eprintln!(
+                                    "   [Background] Counting: {} blocks ({:.0} blocks/sec, {:.1}% of file)",
+                                    count, rate, progress_pct
+                                );
                                 last_progress = std::time::Instant::now();
                             }
 
@@ -1498,8 +1550,12 @@ impl BlockIterator {
                 loop {
                     // Check timeout - skip file if it's taking too long
                     if file_start_time.elapsed() > MAX_FILE_PROCESSING_TIME {
-                        eprintln!("⚠️  File {} processing timeout ({}s) - skipping remaining blocks (read {} blocks so far)", 
-                                 file_idx, MAX_FILE_PROCESSING_TIME.as_secs(), blocks_read_from_file);
+                        eprintln!(
+                            "⚠️  File {} processing timeout ({}s) - skipping remaining blocks (read {} blocks so far)",
+                            file_idx,
+                            MAX_FILE_PROCESSING_TIME.as_secs(),
+                            blocks_read_from_file
+                        );
                         break; // Return what we have so far
                     }
 
@@ -1566,8 +1622,11 @@ impl BlockIterator {
                             loop {
                                 // CRITICAL FIX: Limit search distance to prevent infinite loops
                                 if search_pos - search_start > MAX_SEARCH_DISTANCE {
-                                    eprintln!("⚠️  Pattern search exceeded {}MB limit at file offset {} - skipping to next file", 
-                                             MAX_SEARCH_DISTANCE / (1024 * 1024), search_pos);
+                                    eprintln!(
+                                        "⚠️  Pattern search exceeded {}MB limit at file offset {} - skipping to next file",
+                                        MAX_SEARCH_DISTANCE / (1024 * 1024),
+                                        search_pos
+                                    );
                                     break;
                                 }
 
@@ -1802,8 +1861,11 @@ impl BlockIterator {
                             loop {
                                 // CRITICAL FIX: Limit search distance to prevent infinite loops
                                 if search_pos - search_start > MAX_SEARCH_DISTANCE {
-                                    eprintln!("⚠️  Pattern search exceeded {}MB limit at file offset {} - skipping to next block/file", 
-                                             MAX_SEARCH_DISTANCE / (1024 * 1024), search_pos);
+                                    eprintln!(
+                                        "⚠️  Pattern search exceeded {}MB limit at file offset {} - skipping to next block/file",
+                                        MAX_SEARCH_DISTANCE / (1024 * 1024),
+                                        search_pos
+                                    );
                                     break;
                                 }
 
@@ -1886,7 +1948,10 @@ impl BlockIterator {
             };
 
             if read_count > 0 && start_file_idx > 0 {
-                println!("   📍 Resuming: starting at file {} (conservative estimate based on {} existing blocks)", start_file_idx, read_count);
+                println!(
+                    "   📍 Resuming: starting at file {} (conservative estimate based on {} existing blocks)",
+                    start_file_idx, read_count
+                );
                 println!("   ⚠️  NOTE: Some files may be re-read to ensure no blocks are missed");
             }
 
@@ -1904,8 +1969,10 @@ impl BlockIterator {
             // CRITICAL FIX: Make pre-copy non-blocking so we can start reading immediately
             if let Some(ref cache_dir) = reader.local_cache_dir {
                 let precopy_count = PRE_COPY_LOOKAHEAD.min(file_paths.len());
-                println!("   📦 Pre-copying {} files ahead (starting from file {}) to local cache (background)...", 
-                         precopy_count, start_file_idx);
+                println!(
+                    "   📦 Pre-copying {} files ahead (starting from file {}) to local cache (background)...",
+                    precopy_count, start_file_idx
+                );
 
                 // Clone paths for parallel processing (starting from current position)
                 let files_to_precopy: Vec<PathBuf> = file_paths
@@ -2042,8 +2109,11 @@ impl BlockIterator {
 
                 // CRITICAL FIX: Warn if batch takes too long (might indicate stuck file)
                 if batch_duration.as_secs() > 300 {
-                    eprintln!("   ⚠️  WARNING: Batch {} took {:.1} minutes - some files may be problematic", 
-                             batch_num + 1, batch_duration.as_secs_f64() / 60.0);
+                    eprintln!(
+                        "   ⚠️  WARNING: Batch {} took {:.1} minutes - some files may be problematic",
+                        batch_num + 1,
+                        batch_duration.as_secs_f64() / 60.0
+                    );
                 }
 
                 // Write all blocks from batch sequentially to temp file
@@ -2071,14 +2141,22 @@ impl BlockIterator {
                             for block_data in file_blocks {
                                 // CRITICAL VALIDATION: Verify block before writing
                                 if block_data.len() < MIN_VALID_BLOCK_SIZE {
-                                    eprintln!("   ⚠️  ERROR: Block {} has invalid size: {} bytes (minimum {}) - SKIPPING", 
-                                             read_count, block_data.len(), MIN_VALID_BLOCK_SIZE);
+                                    eprintln!(
+                                        "   ⚠️  ERROR: Block {} has invalid size: {} bytes (minimum {}) - SKIPPING",
+                                        read_count,
+                                        block_data.len(),
+                                        MIN_VALID_BLOCK_SIZE
+                                    );
                                     continue; // Skip invalid block
                                 }
 
                                 if block_data.len() > MAX_VALID_BLOCK_SIZE {
-                                    eprintln!("   ⚠️  ERROR: Block {} has suspiciously large size: {} bytes (maximum {}) - SKIPPING", 
-                                             read_count, block_data.len(), MAX_VALID_BLOCK_SIZE);
+                                    eprintln!(
+                                        "   ⚠️  ERROR: Block {} has suspiciously large size: {} bytes (maximum {}) - SKIPPING",
+                                        read_count,
+                                        block_data.len(),
+                                        MAX_VALID_BLOCK_SIZE
+                                    );
                                     continue; // Skip invalid block
                                 }
 
@@ -2101,8 +2179,10 @@ impl BlockIterator {
                                     if version > 0x7fffffff {
                                         // Version > 2^31 is definitely invalid (would be negative if signed)
                                         // This usually indicates XOR decryption failed or we read from wrong position
-                                        eprintln!("   ⚠️  ERROR: Block {} has obviously invalid version: {} (>{}) - likely XOR decryption failure, SKIPPING", 
-                                                 read_count, version, 0x7fffffff);
+                                        eprintln!(
+                                            "   ⚠️  ERROR: Block {} has obviously invalid version: {} (>{}) - likely XOR decryption failure, SKIPPING",
+                                            read_count, version, 0x7fffffff
+                                        );
                                         continue; // Skip invalid block (XOR decryption failed)
                                     }
                                     // Otherwise accept it - validation will catch real issues during chunking
@@ -2132,7 +2212,10 @@ impl BlockIterator {
                                     // If version is clearly invalid (like the corrupted ones we saw: 536870912, etc.)
                                     // this suggests the block data itself is corrupted
                                     if version_check > 0x7fffffff {
-                                        eprintln!("   ⚠️  ERROR: Block {} has corrupted data (version: {}) - SKIPPING before write", read_count, version_check);
+                                        eprintln!(
+                                            "   ⚠️  ERROR: Block {} has corrupted data (version: {}) - SKIPPING before write",
+                                            read_count, version_check
+                                        );
                                         continue; // Skip this block entirely
                                     }
                                 }
@@ -2165,8 +2248,13 @@ impl BlockIterator {
                                     let chunk_file =
                                         chunks_dir.join(format!("chunk_{}.bin.zst", chunk_num));
                                     if chunk_file.exists() {
-                                        eprintln!("   ⚠️  WARNING: chunk_{}.bin.zst already exists - SKIPPING to avoid overwrite", chunk_num);
-                                        eprintln!("   📊 This suggests collection is restarting - continuing to next chunk...");
+                                        eprintln!(
+                                            "   ⚠️  WARNING: chunk_{}.bin.zst already exists - SKIPPING to avoid overwrite",
+                                            chunk_num
+                                        );
+                                        eprintln!(
+                                            "   📊 This suggests collection is restarting - continuing to next chunk..."
+                                        );
                                         // Don't create the chunk, just continue collecting
                                         // The temp file will accumulate blocks for the next chunk
                                         blocks_in_current_chunk = 0;
@@ -2196,7 +2284,10 @@ impl BlockIterator {
                                     let expected_size = INCREMENTAL_CHUNK_SIZE as u64 * 1024 * 1024; // Rough estimate
                                     if temp_size_before > 0 && temp_size_before < expected_size / 10
                                     {
-                                        eprintln!("   ⚠️  WARNING: Temp file size ({}) seems unusually small before truncation", temp_size_before);
+                                        eprintln!(
+                                            "   ⚠️  WARNING: Temp file size ({}) seems unusually small before truncation",
+                                            temp_size_before
+                                        );
                                     }
 
                                     // Open with truncate to clear for next chunk
@@ -2208,7 +2299,10 @@ impl BlockIterator {
                                     // Verify file is actually empty after truncation
                                     let temp_size_after = std::fs::metadata(&temp_file)?.len();
                                     if temp_size_after != 0 {
-                                        eprintln!("   ⚠️  ERROR: Temp file not properly truncated (size: {} bytes)", temp_size_after);
+                                        eprintln!(
+                                            "   ⚠️  ERROR: Temp file not properly truncated (size: {} bytes)",
+                                            temp_size_after
+                                        );
                                         return Err(anyhow::anyhow!(
                                             "Temp file truncation failed - file not empty"
                                         ));
@@ -2286,8 +2380,10 @@ impl BlockIterator {
                                                 Err(e) => {
                                                     // If we can't read, it might be because we're at EOF (not enough blocks yet)
                                                     // This is OK - just skip the integrity check for now
-                                                    eprintln!("   ⚠️  WARNING: Integrity check skipped - cannot read block {} from temp file (only {} blocks in current chunk): {}", 
-                                                                 current_block, blocks_in_current_chunk, e);
+                                                    eprintln!(
+                                                        "   ⚠️  WARNING: Integrity check skipped - cannot read block {} from temp file (only {} blocks in current chunk): {}",
+                                                        current_block, blocks_in_current_chunk, e
+                                                    );
                                                     break; // Exit integrity check early, continue collection
                                                 }
                                             }
@@ -2300,7 +2396,10 @@ impl BlockIterator {
                                             if block_len > MAX_VALID_BLOCK_SIZE
                                                 || block_len < MIN_VALID_BLOCK_SIZE
                                             {
-                                                eprintln!("   ⚠️  WARNING: Integrity check found corrupted block {} (size: {} bytes) - skipping in verification", current_block, block_len);
+                                                eprintln!(
+                                                    "   ⚠️  WARNING: Integrity check found corrupted block {} (size: {} bytes) - skipping in verification",
+                                                    current_block, block_len
+                                                );
                                                 // Try to recover by seeking to next potential block boundary
                                                 // Look for next valid block start (magic bytes pattern)
                                                 // For now, just skip this block and continue
@@ -2334,7 +2433,10 @@ impl BlockIterator {
                                                 Ok(_) => {}
                                                 Err(_) => {
                                                     // Can't read length - skip this block
-                                                    eprintln!("   ⚠️  WARNING: Cannot read block {} length - skipping in verification", verify_start + i);
+                                                    eprintln!(
+                                                        "   ⚠️  WARNING: Cannot read block {} length - skipping in verification",
+                                                        verify_start + i
+                                                    );
                                                     continue;
                                                 }
                                             }
@@ -2345,7 +2447,11 @@ impl BlockIterator {
                                             if block_len > MAX_VALID_BLOCK_SIZE
                                                 || block_len < MIN_VALID_BLOCK_SIZE
                                             {
-                                                eprintln!("   ⚠️  WARNING: Integrity check found corrupted block {} (size: {} bytes) - will be caught during chunking", verify_start + i, block_len);
+                                                eprintln!(
+                                                    "   ⚠️  WARNING: Integrity check found corrupted block {} (size: {} bytes) - will be caught during chunking",
+                                                    verify_start + i,
+                                                    block_len
+                                                );
                                                 // Try to skip past this block and continue
                                                 // Seek past the invalid block if possible
                                                 if block_len < 10 * 1024 * 1024 * 1024 {
@@ -2367,7 +2473,10 @@ impl BlockIterator {
                                                     verified_count += 1;
                                                 }
                                                 Err(_) => {
-                                                    eprintln!("   ⚠️  WARNING: Cannot read block {} data - skipping in verification", verify_start + i);
+                                                    eprintln!(
+                                                        "   ⚠️  WARNING: Cannot read block {} data - skipping in verification",
+                                                        verify_start + i
+                                                    );
                                                     continue;
                                                 }
                                             }
@@ -2377,9 +2486,14 @@ impl BlockIterator {
                                         }
 
                                         if verified_count > 0 {
-                                            eprintln!("   ✅ Integrity check: verified {} of {} recent blocks in current chunk (some may be skipped due to corruption)", verified_count, verify_count);
+                                            eprintln!(
+                                                "   ✅ Integrity check: verified {} of {} recent blocks in current chunk (some may be skipped due to corruption)",
+                                                verified_count, verify_count
+                                            );
                                         } else {
-                                            eprintln!("   ⚠️  WARNING: Could not verify any recent blocks in current chunk - collection continues, validation will happen during chunking");
+                                            eprintln!(
+                                                "   ⚠️  WARNING: Could not verify any recent blocks in current chunk - collection continues, validation will happen during chunking"
+                                            );
                                         }
                                     }
 
@@ -2426,13 +2540,27 @@ impl BlockIterator {
                                             } else {
                                                 0
                                             };
-                                            println!("   📊 Progress: {}/{} blocks ({:.1}%) | Rate: {:.0} blocks/sec (avg: {:.0}) | ETA: {} min | File: {}", 
-                                                     read_count, estimated_total, progress_pct, current_rate, avg_rate, eta_seconds / 60, file_idx);
+                                            println!(
+                                                "   📊 Progress: {}/{} blocks ({:.1}%) | Rate: {:.0} blocks/sec (avg: {:.0}) | ETA: {} min | File: {}",
+                                                read_count,
+                                                estimated_total,
+                                                progress_pct,
+                                                current_rate,
+                                                avg_rate,
+                                                eta_seconds / 60,
+                                                file_idx
+                                            );
                                         } else {
-                                            println!("   📊 Progress: {}/{} blocks ({:.1}%) | Rate: {:.0} blocks/sec | File: {}",
-                                                     read_count, estimated_total,
-                                                     (read_count as f64 / estimated_total as f64 * 100.0).min(100.0),
-                                                     current_rate, file_idx);
+                                            println!(
+                                                "   📊 Progress: {}/{} blocks ({:.1}%) | Rate: {:.0} blocks/sec | File: {}",
+                                                read_count,
+                                                estimated_total,
+                                                (read_count as f64 / estimated_total as f64
+                                                    * 100.0)
+                                                    .min(100.0),
+                                                current_rate,
+                                                file_idx
+                                            );
                                         }
 
                                         last_progress_time = std::time::Instant::now();
@@ -2500,8 +2628,14 @@ impl BlockIterator {
                         let chunk_file =
                             chunks_dir.join(format!("chunk_{}.bin.zst", final_chunk_num));
                         if chunk_file.exists() {
-                            eprintln!("   ⚠️  Final chunk {} already exists - SKIPPING to prevent overwrite", final_chunk_num);
-                            eprintln!("   📊 Temp file has {} blocks but chunk {} already exists - preserving temp file for resume", blocks_in_temp, final_chunk_num);
+                            eprintln!(
+                                "   ⚠️  Final chunk {} already exists - SKIPPING to prevent overwrite",
+                                final_chunk_num
+                            );
+                            eprintln!(
+                                "   📊 Temp file has {} blocks but chunk {} already exists - preserving temp file for resume",
+                                blocks_in_temp, final_chunk_num
+                            );
                             // Don't delete temp file - preserve it for resume
                         } else {
                             eprintln!(
@@ -2524,7 +2658,9 @@ impl BlockIterator {
                             );
                         }
                     } else {
-                        eprintln!("   ⚠️  Temp file exists but contains no valid blocks - preserving for resume");
+                        eprintln!(
+                            "   ⚠️  Temp file exists but contains no valid blocks - preserving for resume"
+                        );
                     }
                 } else {
                     eprintln!("   ⚠️  Temp file is empty - no final chunk to create");
@@ -2626,7 +2762,9 @@ impl BlockIterator {
             // BUT: This doesn't mean collection is complete - we need to continue reading files
             // Only stop if we've actually read all files, not just because temp file was truncated
             if !temp_file.exists() {
-                println!("   ℹ️  Temp file no longer exists (truncated after chunking) - will continue reading from files");
+                println!(
+                    "   ℹ️  Temp file no longer exists (truncated after chunking) - will continue reading from files"
+                );
                 println!(
                     "   📍 Last processed file: {} (will continue from there in iterator)",
                     last_processed_file_idx
@@ -2640,7 +2778,9 @@ impl BlockIterator {
             // continue reading from files instead of stopping. Collection is NOT complete just
             // because temp file was truncated - we need to read ALL files first.
             if !temp_file.exists() {
-                println!("   ℹ️  Temp file doesn't exist (was truncated after chunking) - continuing file reading");
+                println!(
+                    "   ℹ️  Temp file doesn't exist (was truncated after chunking) - continuing file reading"
+                );
                 ordered_blocks = None; // Continue reading from files - DON'T STOP COLLECTION
             } else {
                 println!("   📖 Reading blocks from temp file to build hash map...");
@@ -2748,7 +2888,10 @@ impl BlockIterator {
                     }
                     Err(e) => {
                         // Temp file can't be opened (maybe truncated after chunking) - continue reading from files
-                        eprintln!("   ⚠️  Warning: Could not open temp file for hash map building: {} - continuing file reading", e);
+                        eprintln!(
+                            "   ⚠️  Warning: Could not open temp file for hash map building: {} - continuing file reading",
+                            e
+                        );
                         ordered_blocks = None; // Continue reading from files - DON'T STOP COLLECTION
                     }
                 }
@@ -2771,7 +2914,9 @@ impl BlockIterator {
 
             if !should_build_old_cache {
                 if !temp_file.exists() {
-                    println!("   ℹ️  Temp file doesn't exist (truncated after chunking) - skipping cache build, continuing file reading");
+                    println!(
+                        "   ℹ️  Temp file doesn't exist (truncated after chunking) - skipping cache build, continuing file reading"
+                    );
                 } else {
                     println!(
                         "   ✅ Chunked cache already exists - skipping old format cache build"
@@ -2827,7 +2972,9 @@ impl BlockIterator {
                 // Memory-mapped reads are instant (no I/O wait), sequential writes are fastest
                 // Parallelizing would add overhead without benefit (can't parallelize single-file writes)
                 // The 128MB buffer ensures maximum throughput for sequential I/O
-                println!("   📖 Copying blocks from temp file to cache (sequential, optimized for NVMe)...");
+                println!(
+                    "   📖 Copying blocks from temp file to cache (sequential, optimized for NVMe)..."
+                );
                 let mut pos = 0usize;
                 let mut blocks_copied = 0;
 
@@ -2924,11 +3071,17 @@ impl BlockIterator {
                         // The temp file is a valuable backup even after cache is saved.
                         // Users can manually delete it if they want, but code should NEVER do it.
                         // Note: Memory map is automatically dropped when it goes out of scope
-                        println!("   💾 Temp file preserved at: {} (contains {} blocks, {:.2} GB of work)", 
-                                 temp_file.display(),
-                                 read_count,
-                                 std::fs::metadata(&temp_file).map(|m| m.len() as f64 / 1_073_741_824.0).unwrap_or(0.0));
-                        println!("   ⚠️  DO NOT DELETE THIS FILE - It represents days of processing work");
+                        println!(
+                            "   💾 Temp file preserved at: {} (contains {} blocks, {:.2} GB of work)",
+                            temp_file.display(),
+                            read_count,
+                            std::fs::metadata(&temp_file)
+                                .map(|m| m.len() as f64 / 1_073_741_824.0)
+                                .unwrap_or(0.0)
+                        );
+                        println!(
+                            "   ⚠️  DO NOT DELETE THIS FILE - It represents days of processing work"
+                        );
                     }
                 }
                 // Memory map is automatically dropped when it goes out of scope
@@ -2954,7 +3107,10 @@ impl BlockIterator {
                                 max_blocks,
                             ) {
                                 Ok(Some(iter)) => {
-                                    println!("   ✅ All chunks complete ({} blocks) - using chunked iterator", metadata.total_blocks);
+                                    println!(
+                                        "   ✅ All chunks complete ({} blocks) - using chunked iterator",
+                                        metadata.total_blocks
+                                    );
                                     chunked_iterator = Some(iter);
                                     ordered_blocks = None; // Will use chunked_iterator instead
                                 }
@@ -2968,13 +3124,18 @@ impl BlockIterator {
                             }
                         } else {
                             // Chunks exist but incomplete - continue collection
-                            println!("   ⚠️  Partial chunks exist ({} blocks, need ~{}k) - continuing collection...", 
-                                     metadata.total_blocks, expected_blocks / 1000);
+                            println!(
+                                "   ⚠️  Partial chunks exist ({} blocks, need ~{}k) - continuing collection...",
+                                metadata.total_blocks,
+                                expected_blocks / 1000
+                            );
                             ordered_blocks = None; // Continue reading from files
                         }
                     } else {
                         // No metadata or can't read - assume incomplete, continue collection
-                        println!("   ⚠️  Chunks exist but no metadata - continuing collection to ensure completeness...");
+                        println!(
+                            "   ⚠️  Chunks exist but no metadata - continuing collection to ensure completeness..."
+                        );
                         ordered_blocks = None; // Continue reading from files
                     }
                 } else {
@@ -3042,13 +3203,19 @@ impl BlockIterator {
                         Some(std::io::BufWriter::with_capacity(IO_BUFFER_SIZE, file))
                     }
                     Err(e) => {
-                        eprintln!("   ⚠️  Warning: Could not open temp file for appending: {} - creating new", e);
+                        eprintln!(
+                            "   ⚠️  Warning: Could not open temp file for appending: {} - creating new",
+                            e
+                        );
                         match std::fs::File::create(&temp_file) {
                             Ok(file) => {
                                 Some(std::io::BufWriter::with_capacity(IO_BUFFER_SIZE, file))
                             }
                             Err(e2) => {
-                                eprintln!("   ⚠️  Error: Could not create temp file: {} - blocks will not be saved!", e2);
+                                eprintln!(
+                                    "   ⚠️  Error: Could not create temp file: {} - blocks will not be saved!",
+                                    e2
+                                );
                                 None
                             }
                         }
@@ -3065,7 +3232,10 @@ impl BlockIterator {
                         Some(std::io::BufWriter::with_capacity(IO_BUFFER_SIZE, file))
                     }
                     Err(e) => {
-                        eprintln!("   ⚠️  Error: Could not create temp file: {} - blocks will not be saved!", e);
+                        eprintln!(
+                            "   ⚠️  Error: Could not create temp file: {} - blocks will not be saved!",
+                            e
+                        );
                         None
                     }
                 }
@@ -3171,12 +3341,18 @@ impl BlockIterator {
                         let verify_pos = file.stream_position()?;
                         let expected_pos = magic_start_pos + 4;
                         if verify_pos != expected_pos {
-                            eprintln!("⚠️  WARNING: After reading magic, position is {} but expected {} - seeking to correct", verify_pos, expected_pos);
+                            eprintln!(
+                                "⚠️  WARNING: After reading magic, position is {} but expected {} - seeking to correct",
+                                verify_pos, expected_pos
+                            );
                             file.seek(std::io::SeekFrom::Start(expected_pos))?;
                             // Verify seek worked
                             let verify_pos2 = file.stream_position()?;
                             if verify_pos2 != expected_pos {
-                                eprintln!("⚠️  CRITICAL: Cannot seek to position {} (got {}) - aborting block read", expected_pos, verify_pos2);
+                                eprintln!(
+                                    "⚠️  CRITICAL: Cannot seek to position {} (got {}) - aborting block read",
+                                    expected_pos, verify_pos2
+                                );
                                 return Ok(None);
                             }
                         }
@@ -3283,7 +3459,10 @@ impl BlockIterator {
             let current_pos_after_magic = file.stream_position()?;
             let expected_pos = magic_start_pos + 4;
             if current_pos_after_magic != expected_pos {
-                eprintln!("⚠️  File position mismatch before reading size: expected {}, got {} - seeking to correct position", expected_pos, current_pos_after_magic);
+                eprintln!(
+                    "⚠️  File position mismatch before reading size: expected {}, got {} - seeking to correct position",
+                    expected_pos, current_pos_after_magic
+                );
                 file.seek(std::io::SeekFrom::Start(expected_pos))?;
             }
         }
@@ -3313,7 +3492,10 @@ impl BlockIterator {
                 // Verify position is correct
                 let verify_pos = file.stream_position()?;
                 if verify_pos != expected_size_pos {
-                    eprintln!("⚠️  CRITICAL ERROR: Cannot seek to size field position {} (got {}) - file may be corrupted", expected_size_pos, verify_pos);
+                    eprintln!(
+                        "⚠️  CRITICAL ERROR: Cannot seek to size field position {} (got {}) - file may be corrupted",
+                        expected_size_pos, verify_pos
+                    );
                     return Ok(None);
                 }
             }
@@ -3387,8 +3569,10 @@ impl BlockIterator {
                 if required_size > file_size {
                     // File doesn't have enough data - mark as failed and skip
                     if let Some(file_idx) = self.current_reading_file_idx {
-                        eprintln!("⚠️  Error reading block: file too small (need {} bytes, have {} bytes) - marking file {} as failed", 
-                                 required_size, file_size, file_idx);
+                        eprintln!(
+                            "⚠️  Error reading block: file too small (need {} bytes, have {} bytes) - marking file {} as failed",
+                            required_size, file_size, file_idx
+                        );
                         self.failed_files.insert(file_idx);
                     }
                     self.current_file = None; // Close the file
@@ -3403,7 +3587,10 @@ impl BlockIterator {
                     Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                         // File ended unexpectedly - mark as failed and skip
                         if let Some(file_idx) = self.current_reading_file_idx {
-                            eprintln!("⚠️  Error reading block: failed to fill whole buffer - marking file {} as failed", file_idx);
+                            eprintln!(
+                                "⚠️  Error reading block: failed to fill whole buffer - marking file {} as failed",
+                                file_idx
+                            );
                             self.failed_files.insert(file_idx);
                         }
                         self.current_file = None; // Close the file
@@ -3477,8 +3664,11 @@ impl BlockIterator {
                     loop {
                         // CRITICAL FIX: Limit search distance to prevent infinite loops
                         if search_pos - search_start > MAX_SEARCH_DISTANCE {
-                            eprintln!("⚠️  Pattern search exceeded {}MB limit at file offset {} - skipping to next file", 
-                                 MAX_SEARCH_DISTANCE / (1024 * 1024), search_pos);
+                            eprintln!(
+                                "⚠️  Pattern search exceeded {}MB limit at file offset {} - skipping to next file",
+                                MAX_SEARCH_DISTANCE / (1024 * 1024),
+                                search_pos
+                            );
                             // Mark file as failed to avoid retrying
                             if let Some(file_idx) = self.current_reading_file_idx {
                                 self.failed_files.insert(file_idx);
@@ -3633,7 +3823,9 @@ impl BlockIterator {
                     // This would cause valid blocks to be skipped as "invalid"
                     // Instead, return None to move to next file - the block will be read correctly
                     // when we restart from the correct position
-                    eprintln!("⚠️  Pattern search failed to find next block - moving to next file to avoid skipping valid blocks");
+                    eprintln!(
+                        "⚠️  Pattern search failed to find next block - moving to next file to avoid skipping valid blocks"
+                    );
                     return Ok(None);
                 }
             }
@@ -3709,7 +3901,10 @@ impl BlockIterator {
             if decrypted.len() > 32 * 1024 * 1024 {
                 // Block is unreasonably large - likely read too much
                 // CRITICAL FIX: Return None instead of bailing - skip this corrupted block
-                eprintln!("⚠️  Skipping corrupted block (size {} bytes exceeds 32MB limit) - continuing search", decrypted.len());
+                eprintln!(
+                    "⚠️  Skipping corrupted block (size {} bytes exceeds 32MB limit) - continuing search",
+                    decrypted.len()
+                );
                 return Ok(None);
             }
 
@@ -3722,7 +3917,11 @@ impl BlockIterator {
                     // Invalid version - likely read too much data or corrupted block
                     // CRITICAL FIX: Return None instead of bailing - this allows the iterator
                     // to skip this corrupted block and continue searching for the next valid block
-                    eprintln!("⚠️  Skipping corrupted block (invalid version {} at size {} bytes) - continuing search", version, decrypted.len());
+                    eprintln!(
+                        "⚠️  Skipping corrupted block (invalid version {} at size {} bytes) - continuing search",
+                        version,
+                        decrypted.len()
+                    );
                     return Ok(None);
                 }
             }
@@ -4013,11 +4212,14 @@ impl BlockIterator {
                 Ok(file) => {
                     use std::io::Seek;
                     let mut buf_reader = BufReader::with_capacity(64 * 1024 * 1024, file); // 64MB buffer (optimized for large files)
-                                                                                           // CRITICAL: Ensure file starts at position 0 for correct XOR decryption
+                    // CRITICAL: Ensure file starts at position 0 for correct XOR decryption
                     buf_reader.seek(std::io::SeekFrom::Start(0))?;
                     let verify_pos = buf_reader.stream_position()?;
                     if verify_pos != 0 {
-                        eprintln!("⚠️  WARNING: File {} opened at position {} instead of 0 - seeking to 0", self.current_file_idx, verify_pos);
+                        eprintln!(
+                            "⚠️  WARNING: File {} opened at position {} instead of 0 - seeking to 0",
+                            self.current_file_idx, verify_pos
+                        );
                         buf_reader.seek(std::io::SeekFrom::Start(0))?;
                     }
                     self.current_file = Some(buf_reader);

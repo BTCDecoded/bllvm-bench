@@ -1,7 +1,7 @@
 [package]
 name = "blvm-bench"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Bitcoin Commons Team"]
 description = "Development-only benchmarking suite for Bitcoin Commons BLVM ecosystem"
 license = "MIT"
@@ -9,7 +9,7 @@ repository = "https://github.com/BTCDecoded/blvm-bench"
 homepage = "https://btcdecoded.org"
 keywords = ["bitcoin", "benchmarking", "performance", "testing"]
 categories = ["development-tools", "algorithms"]
-rust-version = "1.83"
+rust-version = "1.85"
 # Every `src/bin/*.rs` target is listed under `[[bin]]` with `required-features` where needed.
 autobins = false
 

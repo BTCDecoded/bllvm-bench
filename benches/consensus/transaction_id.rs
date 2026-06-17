@@ -3,9 +3,9 @@
 
 use blvm_protocol::block::calculate_tx_id;
 use blvm_protocol::{
-    tx_inputs, tx_outputs, OutPoint, Transaction, TransactionInput, TransactionOutput,
+    OutPoint, Transaction, TransactionInput, TransactionOutput, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_transaction() -> Transaction {
     // Matches Core's transaction structure: 2 inputs, 2 outputs
@@ -35,11 +35,11 @@ fn create_test_transaction() -> Transaction {
         ],
         outputs: tx_outputs![
             TransactionOutput {
-                value: 90_000_000_000,     // 90 BTC (matches Core's 90 * COIN)
+                value: 90_000_000_000, // 90 BTC (matches Core's 90 * COIN)
                 script_pubkey: vec![blvm_protocol::opcodes::OP_1],
             },
             TransactionOutput {
-                value: 10_000_000_000,     // 10 BTC (matches Core's 10 * COIN)
+                value: 10_000_000_000, // 10 BTC (matches Core's 10 * COIN)
                 script_pubkey: vec![blvm_protocol::opcodes::OP_1],
             }
         ],

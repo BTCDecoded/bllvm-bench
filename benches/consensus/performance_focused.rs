@@ -10,10 +10,10 @@
 //! Run with: cargo bench --bench performance_focused --features production
 
 use blvm_protocol::{
-    block::connect_block, segwit::Witness, tx_inputs, tx_outputs, Block, BlockHeader, OutPoint,
-    Transaction, TransactionInput, TransactionOutput, UtxoSet, UTXO,
+    Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UTXO, UtxoSet,
+    block::connect_block, segwit::Witness, tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::sync::Arc;
 // ============================================================================
 // CRYPTOGRAPHIC OPERATIONS (SHA-NI + AVX2)
@@ -84,7 +84,7 @@ fn create_simple_transaction() -> Transaction {
             sequence: 0xffffffff,
         }],
         outputs: tx_outputs![TransactionOutput {
-            value: 1_000_000,          // 0.01 BTC
+            value: 1_000_000, // 0.01 BTC
             script_pubkey: vec![blvm_protocol::opcodes::OP_1],
         }],
         lock_time: 0,
@@ -167,7 +167,7 @@ fn create_realistic_block(num_txs: usize) -> Block {
 fn bench_block_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("block_validation");
     group.sample_size(10); // Fewer samples for longer benchmarks
-                           // Small block (10 txs) - typical for quick blocks
+    // Small block (10 txs) - typical for quick blocks
     let block_10 = create_realistic_block(10);
     let witnesses_10: Vec<Vec<Witness>> =
         block_10.transactions.iter().map(|_| Vec::new()).collect();

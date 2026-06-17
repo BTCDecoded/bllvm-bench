@@ -23,12 +23,12 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use blvm_bench::checkpoint_persistence::{CheckpointFormat, CheckpointManager};
 use blvm_bench::chunk_index::{
     ensure_chunk_block_index, missing_chunk_bin_files, validate_utxo_chunk_cache_index,
 };
-use blvm_bench::chunked_cache::{load_chunk_metadata, ChunkedBlockIterator};
+use blvm_bench::chunked_cache::{ChunkedBlockIterator, load_chunk_metadata};
 use blvm_bench::kernel_diff_paths::{
     network_time_for_historical_chunk_replay, resolve_block_cache_root, resolve_chunks_data_dir,
 };
@@ -650,7 +650,7 @@ fn run_disk_utxo(
     status_path: &Path,
     iter: blvm_bench::chunked_cache::ChunkedBlockIterator,
 ) -> Result<()> {
-    use blvm_bench::disk_utxo::{block_input_outpoints, DiskUtxoSet};
+    use blvm_bench::disk_utxo::{DiskUtxoSet, block_input_outpoints};
 
     let db_path = DiskUtxoSet::default_db_path();
     let mut disk_utxo = DiskUtxoSet::open(&db_path)?;
@@ -1110,7 +1110,9 @@ Using DB tip — resume with --start {} (or delete {} to rehydrate from utxo_*.b
                     disk_utxo.save_checkpoint_fixed_v1(height, &cp_path)?;
                     // Reset accumulator so next delta is relative to this base.
                     acc.reset(height)?;
-                    eprintln!("   [checkpoint] height {height}: full base snapshot (flushed to RocksDB, writing .bin in background)");
+                    eprintln!(
+                        "   [checkpoint] height {height}: full base snapshot (flushed to RocksDB, writing .bin in background)"
+                    );
                 } else {
                     let dp = cp_dir.join(format!("delta_{height}.bin"));
                     let (na, nr) = acc.finalize_to_file(height, &dp)?;
@@ -1122,7 +1124,9 @@ Using DB tip — resume with --start {} (or delete {} to rehydrate from utxo_*.b
             } else {
                 let cp_path = cp_dir.join(format!("utxo_{height}.bin"));
                 disk_utxo.save_checkpoint_fixed_v1(height, &cp_path)?;
-                eprintln!("   [checkpoint] height {height}: flushed to RocksDB, writing .bin in background");
+                eprintln!(
+                    "   [checkpoint] height {height}: flushed to RocksDB, writing .bin in background"
+                );
             }
 
             blvm_bench::disk_utxo::write_disk_tip_status_file(&disk_tip_path, height);

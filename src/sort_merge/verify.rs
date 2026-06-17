@@ -8,8 +8,8 @@ use std::collections::{HashMap, VecDeque};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use rayon::prelude::*;
@@ -18,7 +18,7 @@ use blvm_protocol::activation::{ForkActivationTable, IsForkActive};
 use blvm_protocol::bip113::get_median_time_past;
 use blvm_protocol::block::calculate_base_script_flags_for_block_network;
 use blvm_protocol::block::{tx_has_nonempty_input_witness, tx_requires_witness_script_flags};
-use blvm_protocol::script::{verify_script_with_context_full, SigVersion};
+use blvm_protocol::script::{SigVersion, verify_script_with_context_full};
 use blvm_protocol::segwit::Witness;
 use blvm_protocol::serialization::block::{
     deserialize_block_header, deserialize_block_with_witnesses,
@@ -31,7 +31,7 @@ use blvm_protocol::witness::is_witness_empty;
 
 use blvm_consensus::bip348::SchnorrSignatureCollector;
 
-use super::merge_join::{JoinedPrevout, JOINED_PREVOUT_HEADER_LEN};
+use super::merge_join::{JOINED_PREVOUT_HEADER_LEN, JoinedPrevout};
 use crate::chunked_cache::ChunkedBlockIterator;
 use hex;
 
@@ -245,8 +245,12 @@ impl PrevoutReader {
             if n == 0 {
                 // EOF - no more prevouts, we've passed the target
                 let elapsed = start_time.elapsed();
-                eprintln!("  ⚠️  Warning: Reached EOF in prevout file before target block {} (skipped {} records in {:.1}s)", 
-                    target_height, skipped_records, elapsed.as_secs_f64());
+                eprintln!(
+                    "  ⚠️  Warning: Reached EOF in prevout file before target block {} (skipped {} records in {:.1}s)",
+                    target_height,
+                    skipped_records,
+                    elapsed.as_secs_f64()
+                );
                 return Ok(());
             }
             self.leftover.extend_from_slice(&self.buffer[..n]);
@@ -265,7 +269,8 @@ impl PrevoutReader {
                     if prevout.spending_block < block_height {
                         anyhow::bail!(
                             "PrevoutReader desync at block {}: read spending_block {} (stream went backwards)",
-                            block_height, prevout.spending_block
+                            block_height,
+                            prevout.spending_block
                         );
                     }
 
@@ -548,11 +553,7 @@ fn build_loaded_block(
         let f = calculate_base_script_flags_for_block_network(height, network);
         let activation = ForkActivationTable::from_network(network);
         let has_taproot = activation.is_fork_active(ForkId::Taproot, height);
-        if has_taproot {
-            f | 0x20000
-        } else {
-            f
-        }
+        if has_taproot { f | 0x20000 } else { f }
     };
     let activation = ForkActivationTable::from_network(network);
     let height_has_segwit = activation.is_fork_active(ForkId::SegWit, height);

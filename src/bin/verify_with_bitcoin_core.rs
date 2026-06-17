@@ -108,7 +108,9 @@ async fn main() -> Result<()> {
             if core_block_hex.contains(&tx_hex) {
                 println!("  ✅ Transaction found in Bitcoin Core's block");
             } else {
-                println!("  ⚠️  Transaction NOT found in Bitcoin Core's block (might be different serialization)");
+                println!(
+                    "  ⚠️  Transaction NOT found in Bitcoin Core's block (might be different serialization)"
+                );
             }
         }
         Err(e) => {

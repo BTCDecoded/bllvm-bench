@@ -5,7 +5,7 @@
 
 use crate::core_rpc_client::CoreRpcClient;
 use anyhow::{Context, Result};
-use blvm_protocol::types::{Network, Block, Transaction};
+use blvm_protocol::types::{Block, Network, Transaction};
 
 /// Comparison result
 #[derive(Debug, Clone)]
@@ -193,9 +193,7 @@ pub async fn compare_block_validation(
                 }
             }
             Err(e) => {
-                eprintln!(
-                    "[differential] script comparison skipped for block {height}: {e}"
-                );
+                eprintln!("[differential] script comparison skipped for block {height}: {e}");
             }
         }
     }

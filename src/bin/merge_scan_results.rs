@@ -5,7 +5,7 @@
 #![cfg(any(feature = "differential", feature = "scan"))]
 
 use anyhow::{Context, Result};
-use blvm_bench::chain_scan::{merge_results_into, ChainScanResults};
+use blvm_bench::chain_scan::{ChainScanResults, merge_results_into};
 use clap::Parser;
 use std::path::PathBuf;
 

@@ -11,7 +11,10 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 4 {
         eprintln!("Usage: {} <block_height> <tx_idx> <input_idx>", args[0]);
-        eprintln!("Example: {} <mainnet_height_post_segwit_bip141> 168 0", args[0]);
+        eprintln!(
+            "Example: {} <mainnet_height_post_segwit_bip141> 168 0",
+            args[0]
+        );
         std::process::exit(1);
     }
 
@@ -96,7 +99,9 @@ fn main() -> Result<()> {
                             let data = &input.script_sig[data_start..data_end];
                             println!("    Pushed data: {}", hex::encode(data));
                             if i + len + 1 == pos {
-                                println!("    ⚠️  This push is right before OP_CHECKMULTISIG - this is the dummy!");
+                                println!(
+                                    "    ⚠️  This push is right before OP_CHECKMULTISIG - this is the dummy!"
+                                );
                                 println!("    Dummy element: {}", hex::encode(data));
                                 if data == [0x00] {
                                     println!("    ✅ Dummy is [0x00] - this is VALID per BIP147!");
@@ -106,7 +111,9 @@ fn main() -> Result<()> {
                                         "    ⚠️  Dummy is [] (empty) - BIP147 requires [0x00]"
                                     );
                                 } else {
-                                    println!("    ❌ Dummy is non-empty and not [0x00] - this is INVALID");
+                                    println!(
+                                        "    ❌ Dummy is non-empty and not [0x00] - this is INVALID"
+                                    );
                                 }
                                 found_dummy = true;
                                 break;

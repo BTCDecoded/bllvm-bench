@@ -17,7 +17,8 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let outputs_file = blvm_bench::block_cache_env::sort_merge_data_dir()?.join("outputs_sorted.bin");
+    let outputs_file =
+        blvm_bench::block_cache_env::sort_merge_data_dir()?.join("outputs_sorted.bin");
 
     println!(
         "Checking {} txids in: {}",

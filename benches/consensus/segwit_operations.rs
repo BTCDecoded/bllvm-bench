@@ -3,10 +3,10 @@ use blvm_protocol::segwit::{
     calculate_block_weight, calculate_transaction_weight, is_segwit_transaction,
 };
 use blvm_protocol::{
-    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
-    TransactionOutput,
+    Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, tx_inputs,
+    tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_transaction() -> Transaction {
     Transaction {
@@ -43,8 +43,25 @@ fn create_segwit_transaction() -> (Transaction, Witness) {
             script_pubkey: vec![
                 blvm_protocol::opcodes::OP_0,
                 blvm_protocol::opcodes::PUSH_20_BYTES,
-                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-                0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
+                0x01,
+                0x02,
+                0x03,
+                0x04,
+                0x05,
+                0x06,
+                0x07,
+                0x08,
+                0x09,
+                0x0a,
+                0x0b,
+                0x0c,
+                0x0d,
+                0x0e,
+                0x0f,
+                0x10,
+                0x11,
+                0x12,
+                0x13,
             ], // P2WPKH
         }],
         lock_time: 0,

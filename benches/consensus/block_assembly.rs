@@ -3,10 +3,10 @@
 
 use blvm_protocol::mining::create_new_block;
 use blvm_protocol::{
-    tx_inputs, tx_outputs, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput,
-    UtxoSet,
+    BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UtxoSet, tx_inputs,
+    tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_transaction(i: usize) -> Transaction {
     Transaction {

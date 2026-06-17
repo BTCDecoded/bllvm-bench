@@ -11,7 +11,9 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    let chunks_dir = blvm_bench::require_block_cache_dir()?.to_string_lossy().into_owned();
+    let chunks_dir = blvm_bench::require_block_cache_dir()?
+        .to_string_lossy()
+        .into_owned();
     let chunks_dir = PathBuf::from(&chunks_dir);
 
     println!("🔍 Block Coverage Verification");

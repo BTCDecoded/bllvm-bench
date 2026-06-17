@@ -1,10 +1,10 @@
-use blvm_protocol::block::{connect_block, BlockValidationContext};
+use blvm_protocol::block::{BlockValidationContext, connect_block};
 use blvm_protocol::segwit::Witness;
 use blvm_protocol::{
-    tx_inputs, tx_outputs, Block, BlockHeader, OutPoint, Transaction, TransactionInput,
-    TransactionOutput, UtxoSet, UTXO,
+    Block, BlockHeader, OutPoint, Transaction, TransactionInput, TransactionOutput, UTXO, UtxoSet,
+    tx_inputs, tx_outputs,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::sync::Arc;
 
 fn create_test_block() -> Block {

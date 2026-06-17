@@ -1,6 +1,6 @@
-use blvm_protocol::{tx_inputs, tx_outputs, Block, BlockHeader, Transaction, TransactionOutput};
 use blvm_node::storage::Storage;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use blvm_protocol::{Block, BlockHeader, Transaction, TransactionOutput, tx_inputs, tx_outputs};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use tempfile::TempDir;
 
 fn create_test_block() -> Block {

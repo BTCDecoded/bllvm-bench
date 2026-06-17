@@ -1,12 +1,16 @@
 //! Script Verification Benchmarks
 //! Measures script execution and verification performance
 
-use blvm_protocol::script::{eval_script, verify_script, to_stack_element, SigVersion};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use blvm_protocol::script::{SigVersion, eval_script, to_stack_element, verify_script};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 /// Create a simple script for verification
 fn create_simple_script() -> Vec<u8> {
-    vec![blvm_protocol::opcodes::OP_1, blvm_protocol::opcodes::OP_1, blvm_protocol::opcodes::OP_EQUAL]
+    vec![
+        blvm_protocol::opcodes::OP_1,
+        blvm_protocol::opcodes::OP_1,
+        blvm_protocol::opcodes::OP_EQUAL,
+    ]
 }
 
 /// Create a complex script with many operations
