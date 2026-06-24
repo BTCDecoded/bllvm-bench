@@ -1405,7 +1405,7 @@ fn main() -> Result<()> {
                         prefetched,
                         height,
                         &ctx,
-                        Some(u128::MAX),
+                        Some(blvm_consensus::pow::U256([u64::MAX; 4])),
                     ) {
                         Ok((ValidationResult::Valid, post_set, _)) => {
                             du.set_inflight_tip(height);
@@ -1425,7 +1425,7 @@ fn main() -> Result<()> {
                         utxo_set,
                         height,
                         &ctx,
-                        Some(u128::MAX),
+                        Some(blvm_consensus::pow::U256([u64::MAX; 4])),
                     ) {
                         Ok((ValidationResult::Valid, new_utxo, _)) => {
                             utxo_set = new_utxo;
@@ -1633,7 +1633,7 @@ fn main() -> Result<()> {
                                     prefetched,
                                     height,
                                     &ctx,
-                                    Some(u128::MAX),
+                                    Some(blvm_consensus::pow::U256([u64::MAX; 4])),
                                 ) {
                                     Ok((vr, post_set, _)) => {
                                         du.set_inflight_tip(height);
@@ -1664,7 +1664,7 @@ fn main() -> Result<()> {
                                     utxo_set,
                                     height,
                                     &ctx,
-                                    Some(u128::MAX),
+                                    Some(blvm_consensus::pow::U256([u64::MAX; 4])),
                                 ) {
                                     Ok((vr, new_utxo, _)) => {
                                         utxo_set = new_utxo;

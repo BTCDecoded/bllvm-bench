@@ -66,7 +66,7 @@ fn benchmark_mempool_acceptance(c: &mut Criterion) {
         is_coinbase: false,
     };
     utxo_set.insert(outpoint, Arc::new(utxo));
-    let mempool: Mempool = HashSet::new();
+    let mempool = Mempool::new();
     c.bench_function("accept_to_memory_pool_simple", |b| {
         b.iter(|| {
             let _ = black_box(accept_to_memory_pool(
@@ -76,6 +76,7 @@ fn benchmark_mempool_acceptance(c: &mut Criterion) {
                 black_box(&mempool),
                 black_box(0),
                 black_box(None),
+                black_box(Network::Mainnet),
             ));
         })
     });
@@ -84,7 +85,7 @@ fn benchmark_mempool_acceptance(c: &mut Criterion) {
 fn benchmark_mempool_acceptance_complex(c: &mut Criterion) {
     // Core's MempoolCheck validates 400 transactions in mempool
     // We need to match this scale for fair comparison
-    let mut mempool: Mempool = HashSet::new();
+    let mut mempool = Mempool::new();
     let mut utxo_set = UtxoSet::default();
     let mut transactions = Vec::new();
 
@@ -121,6 +122,7 @@ fn benchmark_mempool_acceptance_complex(c: &mut Criterion) {
                     black_box(&mempool),
                     black_box(0),
                     black_box(None),
+                    black_box(Network::Mainnet),
                 ));
             }
         })
@@ -141,7 +143,7 @@ fn benchmark_replacement_checks(c: &mut Criterion) {
     existing_tx.inputs[0].sequence = 0xfffffffe; // RBF
     c.bench_function("replacement_checks", |b| {
         let utxo_set = UtxoSet::default();
-        let mempool: Mempool = HashSet::new();
+        let mempool = Mempool::new();
         b.iter(|| {
             black_box(replacement_checks(
                 black_box(&new_tx),
@@ -155,7 +157,7 @@ fn benchmark_replacement_checks(c: &mut Criterion) {
 
 fn benchmark_mempool_eviction(c: &mut Criterion) {
     // Create a mempool with many transactions to test eviction logic
-    let mut mempool: Mempool = HashSet::new();
+    let mut mempool = Mempool::new();
 
     // Add many transactions to mempool (simulate full mempool)
     for i in 0..1000 {
@@ -185,7 +187,7 @@ fn benchmark_accept_to_memory_pool_400tx(c: &mut Criterion) {
     // Create 400 transactions and accept them all (matches Core's MempoolCheck scale)
     let mut transactions = Vec::new();
     let utxo_set = UtxoSet::default();
-    let mempool: Mempool = HashSet::new();
+    let mempool = Mempool::new();
 
     for i in 0..400 {
         let mut tx = create_test_transaction();
@@ -203,6 +205,7 @@ fn benchmark_accept_to_memory_pool_400tx(c: &mut Criterion) {
                     black_box(&mempool),
                     black_box(0),
                     black_box(None),
+                    black_box(Network::Mainnet),
                 ));
             }
         })
@@ -275,7 +278,7 @@ fn benchmark_replacement_checks_mempool(c: &mut Criterion) {
     // Create a mempool with 400 existing transactions (matches Core's MempoolCheck scale)
     // Core's MempoolCheck validates ALL transactions in mempool, including RBF checks
     // We need to simulate full mempool validation, not just a single RBF check
-    let mut mempool: Mempool = HashSet::new();
+    let mut mempool = Mempool::new();
     let mut utxo_set = UtxoSet::default();
     let mut mempool_txs = Vec::new();
 

@@ -120,10 +120,15 @@ fn benchmark_parallel_validation(c: &mut Criterion) {
         let mut block_hash = [0u8; 32];
         block_hash.copy_from_slice(&second_hash);
         contexts.push(BlockValidationContext {
-            block,
+            block: block.clone(),
             height: height as u64,
             prev_block_hash: prev_hash,
             prev_utxo_set: prev_utxo_set.clone(),
+            witnesses: block
+                .transactions
+                .iter()
+                .map(|tx| tx.inputs.iter().map(|_| Vec::new()).collect())
+                .collect(),
         });
         prev_hash = block_hash;
         prev_utxo_set = utxo_set;
@@ -164,10 +169,15 @@ fn benchmark_sequential_validation(c: &mut Criterion) {
         let mut block_hash = [0u8; 32];
         block_hash.copy_from_slice(&second_hash);
         contexts.push(BlockValidationContext {
-            block,
+            block: block.clone(),
             height: height as u64,
             prev_block_hash: prev_hash,
             prev_utxo_set: prev_utxo_set.clone(),
+            witnesses: block
+                .transactions
+                .iter()
+                .map(|tx| tx.inputs.iter().map(|_| Vec::new()).collect())
+                .collect(),
         });
         prev_hash = block_hash;
         prev_utxo_set = utxo_set;
